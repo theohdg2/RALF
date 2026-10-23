@@ -1,3 +1,7 @@
+import math
+import random
+import time
+
 from settings import *
 import settings
 
@@ -73,12 +77,16 @@ def play_music(music_sequence: list):
     :function get_height: int|None
     :description: This function retrieves the height measured by the distance sensor. If the distance sensor is not initialized, it returns None. Otherwise, it returns the distance in centimeters as an integer.
 """
-def get_height() -> int|None:
+def get_height(test_mode: bool = False) -> int|None:
+    if test_mode:
+        return random.randint(5,100)
     # Get the height from the distance sensor
     sensor = settings.distance_sensor
     return sensor.get_distance() if sensor is not None else None
 
-def get_brightness() -> int|None:
+def get_brightness(test_mode: bool = False) -> int|None:
+    if test_mode:
+        return random.randint(5,100)
     return brightness_sensor.get_value()/65535 * 100
 """
     :function error_leds_state: None

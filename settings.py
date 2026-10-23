@@ -10,6 +10,8 @@ from wumons_i2c.dfr_urm09 import DFRobot_URM09
 """
 START_PROPAGATION_HEIGHT = 20
 END_PROPAGATION_HEIGHT = 10
+SECURITY_LEEWAY = 2
+BRIGHTNESS_DROP_DETECTION = 30
 
 
 #define global variables
