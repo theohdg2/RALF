@@ -1,7 +1,16 @@
 # import wumons libraries
 import wumons
+
+from available_musics import AvailableMusics
 from servo import Servo
 from wumons_i2c.dfr_urm09 import DFRobot_URM09
+
+"""
+    Main variables for height and other
+"""
+START_PROPAGATION_HEIGHT = 20
+END_PROPAGATION_HEIGHT = 10
+
 
 #define global variables
 NEOPIXEL_BRIGHTNESS = 0.2
@@ -15,7 +24,7 @@ BRIGHTNESS_SENSOR = wumons.board.GP26
 # define Wukong Leds
 wumons_leds = wumons.NeoPixel(wumons.board.GP22,2, brightness=NEOPIXEL_BRIGHTNESS, auto_write=NEOPIXEL_AUTO_WRITE)
 # define Wukong Music Player
-wumons_music_player = wumons.Music(wumons.board.GP9)
+wumons_music_player = AvailableMusics(wumons.board.GP9)
 #   Connect the four possible motors
 motor = wumons.DCMotor(wumons.board.GP10, wumons.board.GP11)
 # Connect the trapdoor servo

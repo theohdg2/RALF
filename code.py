@@ -15,45 +15,13 @@ def initialize_robot(trap_position=0, motor_speed=0) -> bool:
         set_trapdoor_position(trap_position)
         initialize_ultrasonic_sensor()
         forward(motor_speed)
-        play_music(AvailableMusics.SUCCESS_START)
+        #play_music(AvailableMusics.SUCCESS_START)
         return True
     except Exception as e:
         print(f"Error initializing robot: {e}")
         return False
 
-"""
-    :function get_height: int|None
-    :description: This function retrieves the height measured by the distance sensor. If the distance sensor is not initialized, it returns None. Otherwise, it returns the distance in centimeters as an integer.
-"""
-def get_height() -> int|None:
-    # Get the height from the distance sensor
-    sensor = settings.distance_sensor
-    return sensor.get_distance() if sensor is not None else None
 
-def get_brightness() -> int|None:
-    return brightness_sensor.get_value()/65535 * 100
-"""
-    :function error_leds_state: None
-    :description: This function sets the LEDs to an error state by blinking red. It fills the LEDs with red color, shows the change
-"""
-def error_leds_state():
-    # Set the LEDs to an error state (blinking red)
-    wumons_leds.fill(colour_from_rgb(255, 0, 0))  # Red
-    wumons_leds.show()
-    time.sleep(0.5)
-
-"""
-    :function waiting_leds_state: None
-    :description: This function sets the LEDs to a waiting state by blinking blue and white.
-"""
-def waiting_leds_state():
-    # Set the LEDs to a waiting state (blinking blue & white)
-    wumons_leds.fill(colour_from_rgb(0, 0, 255))  # Blue
-    wumons_leds.show()
-def initialized_leds_state():
-    # Set the LEDs to an initialized state (solid green)
-    wumons_leds.fill(colour_from_rgb(0, 255, 0))  # Green
-    wumons_leds.show()
 
 """
     :function loop: None
