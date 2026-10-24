@@ -1,36 +1,62 @@
-# Fonctionnement de l'intelligence
+# R.A.L.F. — Prototype d'intelligence
 
-`intelligence.py` contient un prototype qui fait avancer le robot et cherche successivement deux repères de distance : le repère de départ à **20 cm**, puis celui d'arrêt à **10 cm**. La détection combine la distance ultrasonique et une baisse de luminosité. Ce module n'est pas appelé par le programme principal actuel (`code.py`).
+`intelligence.py` contient une logique expérimentale qui détecte successivement un repère START autour de **20 cm** et un repère END autour de **10 cm**. Elle combine les mesures ultrasoniques avec la baisse de luminosité au passage d'un repère.
 
-## Paramètres actuels
+> [!WARNING]
+> `code.py` n'importe pas et ne lance pas `intelligence.py`. Le programme principal suit une autre séquence : après l'appui sur le bouton, il ouvre la trappe, avance et s'arrête quand la mesure ultrasonique est comprise entre 0 et 10 cm. Le prototype décrit ici ne doit pas être considéré comme le comportement actuellement utilisé par le robot.
 
-Les constantes sont définies dans `settings.py` :
+## Réglages par défaut
 
-| Paramètre | Valeur | Utilisation |
+Les valeurs sont définies dans `settings.py` et peuvent être remplacées par des réglages lus via `supervisor.get_setting()`.
+
+| Paramètre | Valeur par défaut | Utilisation |
 | --- | ---: | --- |
-| `START_PROPAGATION_HEIGHT` | 20 cm | Cible du premier repère |
-| `END_PROPAGATION_HEIGHT` | 10 cm | Cible du second repère |
-| `SECURITY_LEEWAY` | 2 cm | Largeur de la zone de détection autour de chaque cible |
-| `BRIGHTNESS_DROP_DETECTION` | 30 % | Baisse relative exigée dans la zone de détection |
+| `START_PROPAGATION_HEIGHT` | 20 cm | Cible START |
+| `END_PROPAGATION_HEIGHT` | 10 cm | Cible END |
+| `SECURITY_LEEWAY` | 1 cm | Seuil de secours sous chaque cible |
+| `BRIGHTNESS_DROP_DETECTION` | 30 % | Baisse lumineuse minimale par rapport à la référence |
+| `DISTANCE_SAMPLES` | 3 | Nombre de lectures pour la médiane |
+| `MAX_HEIGHT_CHANGE_CM_PER_READING` | 2 cm | Variation maximale de médiane acceptée par lecture |
+| `MAX_INVALID_READINGS` | 8 | Nombre d'anomalies consécutives avant arrêt |
+| `BRIGHTNESS_SAMPLES` | 20 | Taille maximale de l'historique lumineux |
+| `MIN_BRIGHTNESS_SAMPLES` | 5 | Nombre minimum de mesures pour établir une référence |
+| `BRIGHTNESS_CONFIRM_SAMPLES` | 2 | Mesures sombres consécutives exigées |
+| `BRIGHTNESS_DETECTION_WINDOW` | 1 cm | Demi-largeur de la fenêtre de détection lumineuse |
 
-La baisse est calculée par rapport à la luminosité moyenne mesurée avant le repère. Une baisse de 30 % signifie que la mesure courante doit être inférieure ou égale à 70 % de cette référence.
+Avec les valeurs par défaut, la luminosité peut déclencher START entre **19 et 21 cm** et END entre **9 et 11 cm**. La condition de secours déclenche START à **19 cm ou moins** et END à **9 cm ou moins**, selon la médiane filtrée.
 
-## Déroulement du code
+La baisse est relative : avec une référence de 60 %, le seuil de 30 % exige une lecture inférieure ou égale à 42 %.
 
-1. `run_intelligence()` commande d'abord le moteur à 100 %.
-2. **Approche du repère de départ :** au-dessus de 22 cm, le code cumule les mesures de luminosité et calcule une moyenne. Entre 18 et 22 cm, il fige cette référence. Si la luminosité atteint le seuil de baisse, il recueille trois mesures de distance, puis utilise leur médiane. Une médiane entre 19 et 21 cm déclenche `run_start_actions()`.
-3. **Secours au départ :** si la distance atteint 18 cm ou moins, `run_start_actions()` est appelée sans attendre la baisse de luminosité ni confirmer la distance par la médiane.
-4. Après le déclenchement du départ, le code réinitialise la moyenne lumineuse lorsqu'il est au-dessus de 12 cm, puis la recalcule entre 12 et 18 cm.
-5. **Approche du repère d'arrêt :** entre 8 et 12 cm, il fige la nouvelle moyenne. Si la luminosité baisse suffisamment, il prend trois mesures et vérifie que leur médiane est entre 9 et 11 cm. Lorsque cette condition est satisfaite, `run_end_actions()` est appelée et la boucle se termine.
-6. **Secours à l'arrêt :** à 8 cm ou moins, `run_end_actions()` est appelée sans confirmation lumineuse ni médiane, puis la boucle se termine.
+## Déroulement
 
-La médiane est la valeur centrale après tri des trois distances recueillies. Elle réduit l'influence d'une mesure isolée incorrecte. Dans les zones sensibles, la collecte s'effectue sur plusieurs passages de boucle ; une mesure suivante satisfaisant encore le seuil lumineux déclenche la vérification des trois mesures enregistrées.
+1. `run_intelligence()` commande le moteur vers l'avant à 100 %.
+2. À chaque tour, il lit la distance et la luminosité. Une distance `None`, négative ou supérieure à 320 cm est invalide : l'historique des distances et le compteur de confirmations lumineuses sont réinitialisés.
+3. Après `DISTANCE_SAMPLES` distances valides, le code utilise la médiane. Les variations de médiane supérieures à `MAX_HEIGHT_CHANGE_CM_PER_READING` sont rejetées. Les lectures invalides et les variations rejetées alimentent le compteur de sécurité ; après huit anomalies consécutives, le moteur est arrêté et la fonction retourne.
+4. **Calibration START :** tant que la médiane est supérieure à 21 cm, le code conserve au plus 20 mesures lumineuses. En quittant cette zone, il fige leur moyenne si au moins cinq mesures ont été recueillies.
+5. **Détection START :** dans la fenêtre 19–21 cm, une luminosité au plus égale à 70 % de la référence doit être observée deux fois de suite. Sinon, le secours ultrasonique déclenche à 19 cm ou moins. START appelle `_run_start_actions()`, puis les historiques lumineux et de distance sont réinitialisés pour la phase suivante.
+6. **Calibration END :** après START, le code recueille une nouvelle référence lorsque la médiane se trouve strictement entre 11 et 19 cm. Comme pour START, la moyenne est figée en quittant la zone, à condition d'avoir au moins cinq échantillons.
+7. **Détection END :** dans la fenêtre 9–11 cm, deux mesures lumineuses consécutives sous le seuil déclenchent END. Le secours ultrasonique intervient à 9 cm ou moins. `_run_end_actions()` arrête le moteur, puis la boucle se termine.
 
-## État et limites du prototype
+La médiane réduit l'effet d'une mesure isolée aberrante. Elle n'élimine pas toutes les erreurs : si une lecture est rejetée à cause d'un saut incohérent, l'historique des distances est conservé et une nouvelle médiane sera calculée aux tours suivants.
 
-- Les appels à `get_height(True)` et `get_brightness(True)` utilisent des nombres aléatoires de test (`utils.py`), pas les capteurs physiques. Il faut les remplacer par des lectures réelles pour une utilisation sur le robot.
-- `run_start_actions()` et `run_end_actions()` affichent uniquement `TODO`. L'ouverture de la trappe et l'arrêt du moteur ne sont donc pas réalisés par ces fonctions. En particulier, la boucle se termine après le repère d'arrêt, mais le code actuel n'envoie pas de commande d'arrêt au moteur à cet endroit.
-- `test_values()` retourne actuellement toujours `False`, même si ses contrôles réussissent. Le constructeur affiche donc `this is an error` à chaque instanciation.
-- Les seuils sont paramétrés autour de 20 cm et 10 cm ; le commentaire historique conservé dans le fichier décrit d'autres seuils. Les constantes et conditions du code sont la référence pour le comportement actuel.
+## État actuel et limites
 
-Ce module doit donc être considéré comme expérimental et non comme la séquence de fonctionnement réellement lancée par `code.py`. Le programme principal utilise actuellement une autre séquence : après l'appui sur le bouton, il avance et arrête le moteur lorsque la distance mesurée est inférieure à 10 cm.
+- **Le prototype n'est pas intégré au programme principal.** Il ne s'exécute que si un autre code l'instancie et appelle `run_intelligence()`.
+- `_run_start_actions()` affiche seulement « Déclenchement du début » : elle n'ouvre pas la trappe et n'effectue pas d'autre action. `_run_end_actions()` arrête le moteur et affiche un message.
+- Les paramètres `distance_sensor` et `brightness_sensor` passés au constructeur sont vérifiés par `test_values()`, mais les lectures de la boucle passent par `get_height()` et `get_brightness()` dans `utils.py`. Ces fonctions utilisent les composants globaux définis dans `settings.py` ; les capteurs passés au constructeur ne pilotent donc pas les lectures.
+- `test_values()` vérifie les deux cibles, leur ordre et les types des capteurs. En cas d'échec, le constructeur affiche un message générique, mais continue quand même : l'exécution n'est pas bloquée et l'erreur n'est pas signalée à l'appelant.
+- Si moins de cinq mesures lumineuses sont collectées avant de quitter une zone de calibration, aucune référence n'est figée. La détection lumineuse ne peut alors pas déclencher pour cette phase ; seul le seuil de secours reste disponible.
+- La boucle ne contient ni pause ni délai maximal. Sa cadence dépend des lectures matérielles et le robot n'a pas de protection contre un capteur bloqué ou une progression qui n'atteint jamais les seuils.
+- Les paramètres `DISTANCE_SAMPLES` et `BRIGHTNESS_CONFIRM_SAMPLES` sont configurables, mais le code suppose une médiane de trois valeurs (`sorted(distance_history)[1]`). Changer `DISTANCE_SAMPLES` de 3 peut produire une médiane incorrecte ou une erreur d'index.
+- Les imports et capteurs employés sont propres à CircuitPython. Comme indiqué dans le [README](../README.md), ce fichier ne se lance pas directement avec le Python classique sur ordinateur.
+
+## Pistes d'amélioration
+
+1. **Terminer et valider l'intégration** : fournir de vraies actions START/END, décider si le prototype remplace la séquence de `code.py`, puis tester le comportement sur le robot avec une procédure de sécurité.
+2. **Rendre les capteurs injectés réellement utilisables** : lire les objets reçus par le constructeur (ou retirer ces arguments et utiliser explicitement les fonctions globales) afin que les tests et la configuration correspondent au comportement réel.
+3. **Corriger les validations** : lever une erreur explicite ou retourner un résultat d'échec plutôt que d'imprimer un message et de poursuivre ; valider également les limites et la cohérence de tous les paramètres.
+4. **Rendre les filtres cohérents avec leur configuration** : calculer la médiane correctement pour un nombre configurable d'échantillons, ou imposer clairement une taille de trois.
+5. **Renforcer les sécurités** : définir le comportement pour une lecture lumineuse invalide, ajouter une durée maximale de déplacement, arrêter explicitement le moteur lors de toute sortie anormale, et traiter l'échec d'initialisation du capteur.
+6. **Tester les cas limites** : absence d'écho, valeurs hors plage, sauts de distance, référence lumineuse insuffisante, scotch manqué et conditions de luminosité changeantes. Le simulateur fournit un point de départ, mais ne remplace pas des essais physiques.
+
+Le modèle et les résultats enregistrés de la simulation sont présentés dans [la documentation dédiée](simulations.md).

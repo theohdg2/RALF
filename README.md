@@ -1,21 +1,22 @@
-# RALF
+# R.A.L.F.
 
-RALF est un robot mobile piloté par un contrôleur compatible CircuitPython et une carte WuKong 2040. Le programme utilise un capteur ultrasonique pour détecter une balise, un capteur de luminosité, un moteur à courant continu et une trappe motorisée.
+R.A.L.F. est un robot mobile de largage piloté par une carte WuKong 2040 exécutant CircuitPython. Le projet commande un moteur à courant continu, une trappe à servo, un capteur ultrasonique, un capteur analogique de luminosité, un bouton, des NeoPixels et un buzzer.
 
-## Fonctionnement
+## Fonctionnement actuel
 
-Le fichier `code.py` est le point d'entrée exécuté automatiquement par CircuitPython :
+`code.py` est le point d'entrée exécuté automatiquement par CircuitPython.
 
-1. Au démarrage, le programme place la trappe à 0°, initialise le capteur ultrasonique et règle le moteur à l'arrêt.
-2. Le robot indique qu'il est prêt par ses LED vertes, puis attend le bouton de démarrage. En attente, les LED clignotent en bleu et la luminosité mesurée est affichée sur la console série.
-3. Après un appui, la trappe passe à 90° et le moteur avance à pleine vitesse.
-4. Le robot s'arrête lorsque le capteur mesure une distance inférieure à 10 cm.
+1. Le programme place la trappe à 0°, initialise le capteur ultrasonique et règle le moteur à l'arrêt.
+2. Si l'initialisation est considérée réussie, les LED passent au vert. Le programme attend le bouton analogique en affichant la luminosité sur la console série et en laissant les LED bleues.
+3. À l'appui sur le bouton, la trappe passe à 90° et le moteur avance à 100 %.
+4. Le moteur s'arrête lorsque la distance mesurée est comprise entre 0 cm inclus et 10 cm exclu. Le programme revient ensuite à l'attente d'un nouvel appui.
 
-`intelligence.py` contient un prototype de détection en deux étapes, combinant distance et variation de luminosité. Il n'est pas appelé par le programme principal actuel. Voir la [documentation détaillée de l'intelligence](docs/intelligence.md) pour son fonctionnement, ses seuils et les points à terminer avant de l'utiliser.
+La séquence réellement exécutée est dans `code.py` et `utils.py`. `intelligence.py` contient un prototype distinct de détection par distance et luminosité ; il n'est pas appelé par `code.py` et ne commande pas la trappe au déclenchement START. Voir [la documentation de l'intelligence](docs/intelligence.md). Le simulateur et ses résultats sont décrits dans [la documentation des simulations](docs/simulations.md).
+
+> [!CAUTION]
+> Dans la séquence principale, un retour `False` de l'initialisation du capteur ultrasonique n'est pas vérifié. Une mesure négative n'arrête pas le moteur ; si le capteur n'est pas initialisé, `None` peut provoquer une erreur dans la comparaison de distance. Vérifiez le capteur avant un essai physique et ajoutez une stratégie d'arrêt en cas de lecture invalide ou de délai dépassé.
 
 ## Matériel et connexions
-
-Les broches ci-dessous sont celles définies dans `settings.py` et `lib/wumons/__init__.py`.
 
 | Élément | Broche(s) |
 | --- | --- |
@@ -24,39 +25,49 @@ Les broches ci-dessous sont celles définies dans `settings.py` et `lib/wumons/_
 | Bouton de démarrage analogique | GP28 |
 | Capteur de luminosité analogique | GP26 |
 | Capteur ultrasonique DFRobot URM09 (I²C) | GP17 (SCL), GP16 (SDA), adresse `0x11` |
-| LED NeoPixel (2 LED) | GP22 |
-| Buzzer / lecteur musical | GP9 |
+| NeoPixels (2 LED) | GP22 |
+| Buzzer | GP9 |
 
-Vérifiez le brochage de votre contrôleur et l'alimentation des composants avant la mise sous tension. Le capteur URM09 doit être accessible sur le bus I²C pour que la séquence de démarrage et la détection de distance fonctionnent correctement.
+Vérifiez le brochage, l'alimentation et la fixation mécanique avant toute mise sous tension. Le capteur URM09 doit être accessible sur le bus I²C.
 
-## Installation et lancement
+## Installation sur la carte
 
-1. Flashez sur le contrôleur une version de **CircuitPython** compatible avec la carte et ses broches `GP`.
-2. Connectez le contrôleur à l'ordinateur et ouvrez son volume `CIRCUITPY`.
-3. Copiez à la racine du volume les fichiers Python du projet (`code.py`, `settings.py`, `utils.py`, `servo.py`, `available_musics.py`, `intelligence.py`) ainsi que le dossier `lib/`.
-4. Redémarrez le contrôleur ou enregistrez `code.py`. CircuitPython lance ce fichier automatiquement. Les messages de diagnostic sont visibles via la console série.
+1. Flashez une version de **CircuitPython** compatible avec la WuKong 2040.
+2. Connectez la carte et ouvrez le volume `CIRCUITPY`.
+3. Copiez à la racine les fichiers de programme (`code.py`, `settings.py`, `utils.py`, `servo.py`, `available_musics.py` et, si nécessaire, `intelligence.py`), ainsi que `settings.toml` si vous souhaitez définir des réglages CircuitPython personnalisés.
+4. Copiez le dossier `lib/` et ses bibliothèques sur la carte. Ajoutez également les paquets Adafruit `adafruit_bus_device` et `adafruit_pixelbuf` correspondant à votre firmware : ils ne sont pas inclus dans ce dépôt, mais sont importés par les pilotes.
+5. Redémarrez la carte ou enregistrez `code.py`. Les diagnostics sont disponibles sur la console série.
 
-Les bibliothèques Python utilisées par le projet sont en partie fournies dans `lib/`. Ajoutez également dans `lib/` les paquets `adafruit_bus_device` et `adafruit_pixelbuf` de la bibliothèque Adafruit CircuitPython correspondant à votre firmware : ils sont importés par les pilotes du projet, mais ne sont pas inclus dans ce dépôt. Les modules matériels tels que `board`, `analogio`, `pwmio`, `busio` et `neopixel_write` doivent être disponibles dans le firmware CircuitPython installé.
+Ce projet dépend de modules matériels fournis par CircuitPython (`board`, `analogio`, `pwmio`, `busio`, `digitalio`, `supervisor`, entre autres). Il ne se lance donc pas tel quel avec le Python classique de Windows/macOS/Linux : les essais sur ordinateur nécessitent une simulation et des adaptations des imports propres au firmware.
 
 ## Réglages
 
-Les paramètres matériels et les seuils principaux se trouvent dans `settings.py` :
+`settings.py` récupère les seuils avec `supervisor.get_setting()` ; les valeurs par défaut figurent dans ce fichier et les valeurs personnalisées peuvent être placées dans `settings.toml`. Les réglages utilisés par le prototype `intelligence.py` comprennent notamment :
 
-- `START_PROPAGATION_HEIGHT` et `END_PROPAGATION_HEIGHT` définissent les distances de référence de la logique expérimentale.
-- `SECURITY_LEEWAY` et `BRIGHTNESS_DROP_DETECTION` règlent ses marges de sécurité et son seuil de variation de luminosité.
-- Les constantes `*_GP` indiquent les broches ; `NEOPIXEL_BRIGHTNESS` règle la luminosité des LED.
-- `TRAPDOOR_PULSE_RANGE` est défini dans `servo.py` et peut être adapté au servo utilisé.
+| Paramètre | Valeur par défaut | Rôle |
+| --- | ---: | --- |
+| `START_PROPAGATION_HEIGHT` | 20 cm | Cible de détection START |
+| `END_PROPAGATION_HEIGHT` | 10 cm | Cible de détection END |
+| `SECURITY_LEEWAY` | 1 cm | Déclenchement ultrasonique de secours sous la cible |
+| `BRIGHTNESS_DROP_DETECTION` | 30 % | Baisse lumineuse relative exigée |
+| `DISTANCE_SAMPLES` | 3 | Mesures utilisées pour la médiane |
+| `MAX_INVALID_READINGS` | 8 | Mesures invalides consécutives avant arrêt du prototype |
 
-Les fonctions de pilotage et de lecture des capteurs sont regroupées dans `utils.py`. Toute modification des broches ou des angles doit être vérifiée sur le montage réel avant utilisation.
+Les broches et objets matériels sont créés dans `settings.py`. Les seuils du prototype ne modifient pas la séquence principale de `code.py`.
 
-## Structure du projet
+## Fichiers principaux
 
 ```text
-code.py             Point d'entrée et séquence principale
-settings.py         Broches, composants et paramètres
-utils.py            Fonctions de pilotage et accès aux capteurs
-servo.py            Configuration du servo
-available_musics.py Mélodies prédéfinies
-intelligence.py     Logique expérimentale distance/luminosité
-lib/                Bibliothèques embarquées et pilotes
+code.py              Point d'entrée et séquence principale du robot
+settings.py          Configuration et création des composants matériels
+settings.toml        Valeurs de configuration personnalisées (facultatif)
+utils.py             Commandes moteur, capteurs, LED et initialisation I²C
+servo.py             Adaptation du servo et de sa plage d'impulsions
+available_musics.py  Séquences musicales prédéfinies
+intelligence.py      Prototype expérimental de détection START/END
+simulation.py        Simulation logicielle de l'intelligence
+docs/
+  intelligence.md    Fonctionnement et limites du prototype
+  simulations.md     Modèle et résultats des simulations
+lib/                 Bibliothèques et pilotes CircuitPython
 ```

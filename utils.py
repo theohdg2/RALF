@@ -2,6 +2,7 @@ import math
 import random
 import time
 
+import simulation
 from settings import *
 import settings
 
@@ -79,14 +80,14 @@ def play_music(music_sequence: list):
 """
 def get_height(test_mode: bool = False) -> int|None:
     if test_mode:
-        return random.randint(5,100)
+        return simulation.get_height()
     # Get the height from the distance sensor
     sensor = settings.distance_sensor
     return sensor.get_distance() if sensor is not None else None
 
-def get_brightness(test_mode: bool = False) -> int|None:
+def get_brightness(test_mode: bool = False) -> float|None:
     if test_mode:
-        return random.randint(5,100)
+        return simulation.get_brightness()
     return brightness_sensor.get_value()/65535 * 100
 """
     :function error_leds_state: None

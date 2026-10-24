@@ -4,14 +4,21 @@ import wumons
 from available_musics import AvailableMusics
 from servo import Servo
 from wumons_i2c.dfr_urm09 import DFRobot_URM09
+import supervisor
 
-"""
-    Main variables for height and other
-"""
-START_PROPAGATION_HEIGHT = 20
-END_PROPAGATION_HEIGHT = 10
-SECURITY_LEEWAY = 2
-BRIGHTNESS_DROP_DETECTION = 30
+START_PROPAGATION_HEIGHT = supervisor.get_setting("START_PROPAGATION_HEIGHT", 20)
+END_PROPAGATION_HEIGHT = supervisor.get_setting("END_PROPAGATION_HEIGHT", 10)
+SECURITY_LEEWAY = supervisor.get_setting("SECURITY_LEEWAY", 1)
+
+BRIGHTNESS_DROP_DETECTION = supervisor.get_setting("BRIGHTNESS_DROP_DETECTION", 30)
+MAX_INVALID_READINGS = supervisor.get_setting("MAX_INVALID_READINGS", 8)
+DISTANCE_SAMPLES = supervisor.get_setting("DISTANCE_SAMPLES", 3)
+MAX_HEIGHT_CHANGE_CM_PER_READING = supervisor.get_setting("MAX_HEIGHT_CHANGE_CM_PER_READING", 2)
+
+BRIGHTNESS_SAMPLES = supervisor.get_setting("BRIGHTNESS_SAMPLES", 20)
+BRIGHTNESS_CONFIRM_SAMPLES = supervisor.get_setting("BRIGHTNESS_CONFIRM_SAMPLES", 2)
+MIN_BRIGHTNESS_SAMPLES = supervisor.get_setting("MIN_BRIGHTNESS_SAMPLES", 5)
+BRIGHTNESS_DETECTION_WINDOW = supervisor.get_setting("BRIGHTNESS_DETECTION_WINDOW", 1)
 
 
 #define global variables
