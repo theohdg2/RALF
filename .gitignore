@@ -7,3 +7,5 @@ System Volume Information
 boot_out.txt
 .idea
 logs.txt
+__pycache__/
+*.pyc
