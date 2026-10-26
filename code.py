@@ -1,68 +1,80 @@
-import time
-
-from lib.asyncio import sleep
-from available_musics import AvailableMusics
+from intelligence import *
 from utils import *
-import settings
 
-"""
-    :function initialize_robot: bool
-    :description: This function initializes the robot's components, including setting the trapdoor position and starting the motor. It also plays a success music sequence upon successful initialization. If any error occurs during initialization, it prints the error message and returns False. Otherwise, it returns True.
-"""
+WAITING = "WAITING"
+ACTION = "ACTION"
+
+"""Initialize the robot hardware and bring it to a safe idle state."""
+
 def initialize_robot(trap_position=0, motor_speed=0) -> bool:
+    """Initialize the trapdoor, ultrasonic sensor and motor.
+
+    The previous behaviour is intentionally preserved: the function still tries the
+    same setup steps and returns True/False based on the success of the sequence.
+    """
     try:
-        # Initialize the robot's components
+        # Initialize the robot's components.
         set_trapdoor_position(trap_position)
         initialize_ultrasonic_sensor()
         forward(motor_speed)
-        #play_music(AvailableMusics.SUCCESS_START)
+        play_music(AvailableMusics.SUCCESS_START)
         return True
     except Exception as e:
         print(f"Error initializing robot: {e}")
         return False
 
 
+"""Monitor the robot while it waits for a start signal."""
 
-"""
-    :function loop: None
-    :description: This function contains the main loop of the robot's operation. It continuously checks for button presses and manages the robot's state. When the start button is pressed, it initiates the robot's action sequence and plays a power-up music sequence.
-"""
+def monitor_idle_state():
+    """Report the current brightness and ultrasonic distance while idle."""
+    print(str(get_brightness()) + " % de luminosité & une hauteur de " + str(get_height()) + " cm.")
+    time.sleep(0.125)
+
+
+"""Execute the action sequence upon pressing the start button."""
+
+def handle_start_action(decision_engine):
+    """Launch the start action sequence and then return to idle wait mode."""
+    print("Button pressed. Starting robot action sequence...")
+    in_action_leds_state()
+    decision_engine.run_intelligence()
+    print("Run succesfilly done !")
+    waiting_leds_state()
+
+
+"""Main operational loop: wait for start while monitoring sensors."""
+
 def loop():
-    in_action = False
-    state = "waiting"
+    """Run the robot's waiting loop until the start button is pressed.
+
+    This keeps the original logic: the robot keeps reporting sensor values while
+    idle, and when the button is pressed it runs the intelligence cycle.
+    """
+    decision_engine = Intelligence(distance_sensor, brightness_sensor)
+    state = WAITING
+    waiting_leds_state()
+
     while True:
-        if not in_action and state == "waiting":
-            waiting_leds_state()
+        if state == WAITING:
+            if not is_button_pressed(start_button):
+                monitor_idle_state()
+                continue
 
-        if not in_action:
-            print(str(get_brightness())+" %")
-            time.sleep(0.25)
+            state = ACTION
 
-        if is_button_pressed(start_button) and not in_action:
-            # Start the robot's action sequence
-            print("Button pressed. Starting robot action sequence...")
-            actions()
-            in_action = False
+        if state == ACTION:
+            handle_start_action(decision_engine)
+            state = WAITING
 
 
+"""Entry point of the program."""
 
-def actions():
-    set_trapdoor_position(90)
-    forward(100)
-    while True:
-        if 10 > get_height() >= 0:
-            stop()
-            break
-
-
-
-"""
-    :function main: None
-    :description: This is the main entry point of the program. It initializes the robot and enters the main loop. If initialization fails, it plays an error music sequence and sets the LEDs to an error state.
-"""
 def main():
+    """Initialise the robot and enter the main processing loop."""
     print("Starting robot...")
     print("Initializing components...")
+
     if initialize_robot():
         print("Robot initialized. Waiting for button press...")
         initialized_leds_state()
@@ -70,11 +82,11 @@ def main():
         loop()
     else:
         print("Failed to initialize robot. Please check the components and restart the program.")
-        error_sound = False
+        error_leds_state()
         while True:
-            if not error_sound:
-                play_music(AvailableMusics.INIT_ERROR)
-                error_sound = True
-            error_leds_state()
+            play_music(AvailableMusics.INIT_ERROR)
+            time.sleep(1.5)
+
+
 if __name__ == "__main__":
     main()

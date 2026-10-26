@@ -1,8 +1,5 @@
-import math
-import random
 import time
 
-import simulation
 from settings import *
 import settings
 
@@ -80,6 +77,7 @@ def play_music(music_sequence: list):
 """
 def get_height(test_mode: bool = False) -> int|None:
     if test_mode:
+        import simulation
         return simulation.get_height()
     # Get the height from the distance sensor
     sensor = settings.distance_sensor
@@ -87,8 +85,18 @@ def get_height(test_mode: bool = False) -> int|None:
 
 def get_brightness(test_mode: bool = False) -> float|None:
     if test_mode:
+        import simulation
         return simulation.get_brightness()
     return brightness_sensor.get_value()/65535 * 100
+
+
+def read_sensor_snapshot(test_mode: bool = False):
+    """Return a simple snapshot of the current sensed values in the same units used by the robot."""
+    return {
+        "brightness_percent": get_brightness(test_mode=test_mode),
+        "height_cm": get_height(test_mode=test_mode),
+    }
+
 """
     :function error_leds_state: None
     :description: This function sets the LEDs to an error state by blinking red. It fills the LEDs with red color, shows the change
@@ -104,10 +112,14 @@ def error_leds_state():
     :description: This function sets the LEDs to a waiting state by blinking blue and white.
 """
 def waiting_leds_state():
-    # Set the LEDs to a waiting state (blinking blue & white)
+    # Set the LEDs to a waiting state (solid blue)
     wumons_leds.fill(colour_from_rgb(0, 0, 255))  # Blue
     wumons_leds.show()
 def initialized_leds_state():
     # Set the LEDs to an initialized state (solid green)
     wumons_leds.fill(colour_from_rgb(0, 255, 0))  # Green
+    wumons_leds.show()
+def in_action_leds_state():
+    # Set the LEDs to an in_action state (solid orange)
+    wumons_leds.fill(colour_from_rgb(255, 165, 0))  # Orange
     wumons_leds.show()

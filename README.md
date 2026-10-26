@@ -6,15 +6,16 @@ R.A.L.F. est un robot mobile de largage piloté par une carte WuKong 2040 exécu
 
 `code.py` est le point d'entrée exécuté automatiquement par CircuitPython.
 
-1. Le programme place la trappe à 0°, initialise le capteur ultrasonique et règle le moteur à l'arrêt.
-2. Si l'initialisation est considérée réussie, les LED passent au vert. Le programme attend le bouton analogique en affichant la luminosité sur la console série et en laissant les LED bleues.
-3. À l'appui sur le bouton, la trappe passe à 90° et le moteur avance à 100 %.
-4. Le moteur s'arrête lorsque la distance mesurée est comprise entre 0 cm inclus et 10 cm exclu. Le programme revient ensuite à l'attente d'un nouvel appui.
+1. Le programme initialise le robot, place la trappe à 0° et lance la séquence d'initialisation du capteur ultrasonique.
+2. Si l'initialisation est considérée réussie, les LEDs passent au vert. La boucle principale attend ensuite l'appui sur le bouton de démarrage, tout en affichant la luminosité et la hauteur mesurée sur la console série et en maintenant les LEDs bleues.
+3. À l'appui sur le bouton, le robot passe en mode `ACTION` : les LEDs deviennent orange et l'objet `Intelligence` exécute `run_intelligence()`.
+4. La logique de détection `START / END` est alors pilotée par `intelligence.py` : ouverture de la trappe, avance du moteur, détection de repères par distance et luminosité, puis arrêt du moteur à la fin de la séquence.
+5. Après la fin de l'exécution, le système revient dans l'état `WAITING` et attend un nouvel appui.
 
-La séquence réellement exécutée est dans `code.py` et `utils.py`. `intelligence.py` contient un prototype distinct de détection par distance et luminosité ; il n'est pas appelé par `code.py` et ne commande pas la trappe au déclenchement START. Voir [la documentation de l'intelligence](docs/intelligence.md). Le simulateur et ses résultats sont décrits dans [la documentation des simulations](docs/simulations.md).
+La séquence réellement exécutée est dans `code.py`, `intelligence.py` et `utils.py`. La boucle principale est structurée en états, tandis que `intelligence.py` contient la logique de décision par distance et luminosité. Le simulateur et ses résultats sont décrits dans [la documentation des simulations](docs/simulations.md).
 
 > [!CAUTION]
-> Dans la séquence principale, un retour `False` de l'initialisation du capteur ultrasonique n'est pas vérifié. Une mesure négative n'arrête pas le moteur ; si le capteur n'est pas initialisé, `None` peut provoquer une erreur dans la comparaison de distance. Vérifiez le capteur avant un essai physique et ajoutez une stratégie d'arrêt en cas de lecture invalide ou de délai dépassé.
+> La boucle principale vérifie bien le bouton de démarrage avant d'exécuter l'intelligence, mais un retour `False` de l'initialisation du capteur ultrasonique n'est pas encore exploité de manière robuste. De plus, les lectures invalides (`None`, valeurs négatives ou hors plage) doivent être vérifiées avant chaque essai physique afin de sécuriser l'arrêt du moteur et éviter une boucle non contrôlée.
 
 ## Matériel et connexions
 
@@ -53,7 +54,7 @@ Ce projet dépend de modules matériels fournis par CircuitPython (`board`, `ana
 | `DISTANCE_SAMPLES` | 3 | Mesures utilisées pour la médiane |
 | `MAX_INVALID_READINGS` | 8 | Mesures invalides consécutives avant arrêt du prototype |
 
-Les broches et objets matériels sont créés dans `settings.py`. Les seuils du prototype ne modifient pas la séquence principale de `code.py`.
+Les broches et objets matériels sont créés dans `settings.py`. Ces seuils sont désormais utilisés par la logique de détection intégrée dans `intelligence.py` et donc directement par la séquence principale de `code.py` lors d'un démarrage.
 
 ## Fichiers principaux
 

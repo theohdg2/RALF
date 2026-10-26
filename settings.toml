@@ -17,3 +17,5 @@ BRIGHTNESS_SAMPLES = 20 # Nombre maximal de mesures utilisées pour calculer la 
 BRIGHTNESS_CONFIRM_SAMPLES = 2 # Nombre de lectures sombres consécutives nécessaires pour déclencher l'action
 MIN_BRIGHTNESS_SAMPLES = 5 # Nombre minimal de mesures nécessaires pour fixer la moyenne de luminosité
 BRIGHTNESS_DETECTION_WINDOW = 1  # Marge de ±1 cm autour de la hauteur cible autorisant la détection lumineuse
+
+TRAPDOOR_OPEN_ANGLE = 45 # Angle d'ouverture de la trappe pour la dispertion du retardant
