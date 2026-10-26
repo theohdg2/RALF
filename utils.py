@@ -2,7 +2,7 @@ import time
 
 import settings
 from settings import *
-from wumons import Sensor, I2C
+from wumons import Sensor, i2c
 
 """
     :function colour_from_rgb: int
@@ -80,7 +80,7 @@ def is_button_pressed(button: Sensor, precision: int = 40000) -> bool:
 
 def initialize_ultrasonic_sensor() -> bool:
     try:
-        settings.distance_sensor = DFRobot_URM09(I2C)
+        settings.distance_sensor = DFRobot_URM09(i2c)
         return True
     except Exception as e:
         print(f"Error initializing ultrasonic sensor: {e}")

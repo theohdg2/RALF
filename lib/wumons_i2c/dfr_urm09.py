@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*
+from micropython import const
 from adafruit_bus_device.i2c_device import I2CDevice
 
 

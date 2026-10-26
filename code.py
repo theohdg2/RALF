@@ -81,7 +81,8 @@ def main():
 
     if initialize_robot():
         print("Robot initialized. Waiting for button press...")
-        initialized_leds_state()
+        if not initialize_ultrasonic_sensor():
+            raise RuntimeError("Initialisation du capteur URM09 impossible")
         time.sleep(0.5)
         loop()
     else:
