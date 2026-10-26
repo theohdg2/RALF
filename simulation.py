@@ -7,21 +7,20 @@
 """Simulation des capteurs et de l'intelligence du robot R.A.L.F.
 
 Lancement : python "simulation(1).py"
-get_height() fait descendre le robot d'un pas et retourne des cm entiers.
-get_brightness() retourne un pourcentage a la meme position.
+Get_height() fait descendre le robot d'un pas et retourne des cm entiers.
+Get_brightness() retourne un pourcentage à la meme position.
 Le simulateur conserve les constantes d'origine, mais ajoute les pertes
 ultrasoniques (-1), le filtrage et la confirmation lumineuse.
 """
 
 import random
 
-
-# ---------------- PARAMETRES MODIFIABLES ----------------
+# ---------------- PARAMÈTRES MODIFIABLES ----------------
 INITIAL_HEIGHT_CM = 60.0
 DESCENT_CM_PER_READING = 0.1
 
 SECURITY_LEEWAY = 1
-BRIGHTNESS_DETECTION_WINDOW = 1# cm autour de la cible
+BRIGHTNESS_DETECTION_WINDOW = 1  # cm autour de la cible
 START_PROPAGATION_HEIGHT = 20
 END_PROPAGATION_HEIGHT = 10
 BRIGHTNESS_DROP_DETECTION = 20
@@ -32,14 +31,14 @@ MARKER_HALF_WIDTH_CM = 0.5
 
 NORMAL_BRIGHTNESS = 60.0
 MARKER_BRIGHTNESS = 45.0
-BRIGHTNESS_NOISE = 0.5 # Ecart-type, points de pourcentage
-HEIGHT_NOISE_CM = 0.5 # Ecart-type, cm
+BRIGHTNESS_NOISE = 0.5  # Ecart-type, points de pourcentage
+HEIGHT_NOISE_CM = 0.5  # Ecart-type, cm
 
 HEIGHT_FALSE_READING_RATE = 0.1
-HEIGHT_NO_ECHO_RATE = 0.1# Retour -1 en l'absence d'echo
+HEIGHT_NO_ECHO_RATE = 0.1  # Retour -1 en l'absence d'écho
 BRIGHTNESS_FALSE_READING_RATE = 0.1
 
-# Meme parametres de filtrage que dans intelligence.py
+# Meme paramètres de filtrage que dans intelligence.py
 DISTANCE_SAMPLES = 3
 BRIGHTNESS_SAMPLES = 20
 MIN_BRIGHTNESS_SAMPLES = 5
@@ -59,7 +58,7 @@ last_height_no_echo = False
 last_brightness_glitch = False
 
 
-def reset_simulation(seed=RANDOM_SEED):
+def reset_simulation():
     """Reinitialise la hauteur ET le hasard pour une seed reproductible."""
     global _rng, RANDOM_SEED, true_height
     global last_height_glitch, last_height_no_echo, last_brightness_glitch
@@ -71,11 +70,11 @@ def reset_simulation(seed=RANDOM_SEED):
     last_brightness_glitch = False
 
 
-def get_height(cm=True) -> int:
+def get_height() -> int:
     """Distance en cm (int), ou -1 si l'ultrason ne capte aucun echo."""
     global true_height, last_height_glitch, last_height_no_echo
 
-    # Le robot continue a descendre, meme si une mesure echoue.
+    # Le robot continu à descendre, meme si une mesure échoue.
     true_height = max(0.0, true_height - DESCENT_CM_PER_READING)
 
     last_height_no_echo = _rng.random() < HEIGHT_NO_ECHO_RATE
@@ -91,20 +90,20 @@ def get_height(cm=True) -> int:
     return int(round(max(0.0, measured)))
 
 
-def get_brightness(percent=True) -> float:
-    """Luminosite en % (float), a la meme position que get_height()."""
+def get_brightness() -> float:
+    """Luminosité en % (float), a la meme position que get_height()."""
     global last_brightness_glitch
 
     on_marker = (
-        abs(true_height - START_MARKER_CM) <= MARKER_HALF_WIDTH_CM
-        or abs(true_height - END_MARKER_CM) <= MARKER_HALF_WIDTH_CM
+            abs(true_height - START_MARKER_CM) <= MARKER_HALF_WIDTH_CM
+            or abs(true_height - END_MARKER_CM) <= MARKER_HALF_WIDTH_CM
     )
     reference = MARKER_BRIGHTNESS if on_marker else NORMAL_BRIGHTNESS
     measured = reference + _rng.gauss(0, BRIGHTNESS_NOISE)
 
     last_brightness_glitch = _rng.random() < BRIGHTNESS_FALSE_READING_RATE
     if last_brightness_glitch:
-        # Faux positif (cable) ou faux negatif (scotch).
+        # Faux positif (cable) ou faux négatif (scotch).
         measured = (
             _rng.uniform(50.0, 75.0) if on_marker
             else _rng.uniform(15.0, 33.0)
@@ -116,7 +115,7 @@ def get_brightness(percent=True) -> float:
 def _log_trigger(phase, median_height, current_height,
                  current_brightness, brightness_reference,
                  distance_triggered, brightness_triggered, verbose):
-    """Journal permettant de comprendre la cause de chaque declenchement."""
+    """Journal permettant de comprendre la cause de chaque déclenchement."""
     if not verbose:
         return
     print("Déclenchement de l'action de {} à {:.2f}".format(
@@ -140,14 +139,13 @@ def _log_trigger(phase, median_height, current_height,
 def run_intelligence(verbose=True):
     """Version simulable de run_intelligence() (memes seuils/conditions)."""
     # Simulation : forward(100) est remplace par la descente virtuelle
-    # effectuee lors de chaque appel a get_height().
+    # effectuée lors de chaque appel a get_height().
     distance_history = []
     brightness_history = []
     brightness_reference = None
 
     actions_start_ran = False
     last_median_height = None
-    consecutive_invalid = 0
     no_echo_streak = 0
     rejected_window_streak = 0
     brightness_confirmations = 0
@@ -164,9 +162,9 @@ def run_intelligence(verbose=True):
         # 1. FILTRE ULTRASON : -1 = aucun echo recu
         # --------------------------------------------------
         invalid_height = (
-            current_height is None
-            or current_height < 0
-            or current_height > 320
+                current_height is None
+                or current_height < 0
+                or current_height > 320
         )
         if invalid_height:
             no_echo_streak += 1
@@ -204,7 +202,6 @@ def run_intelligence(verbose=True):
         last_accepted_iteration = iteration
         last_median_height = median_height
         rejected_window_streak = 0
-        consecutive_invalid = 0
 
         # --------------------------------------------------
         # 2. PHASE START OU END
@@ -212,14 +209,14 @@ def run_intelligence(verbose=True):
         if not actions_start_ran:
             target_height = START_PROPAGATION_HEIGHT
             can_calibrate = (
-                median_height > START_PROPAGATION_HEIGHT + SECURITY_LEEWAY
+                    median_height > START_PROPAGATION_HEIGHT + SECURITY_LEEWAY
             )
         else:
             target_height = END_PROPAGATION_HEIGHT
             can_calibrate = (
-                START_PROPAGATION_HEIGHT - SECURITY_LEEWAY
-                > median_height
-                > END_PROPAGATION_HEIGHT + SECURITY_LEEWAY
+                    START_PROPAGATION_HEIGHT - SECURITY_LEEWAY
+                    > median_height
+                    > END_PROPAGATION_HEIGHT + SECURITY_LEEWAY
             )
 
         # --------------------------------------------------
@@ -236,23 +233,23 @@ def run_intelligence(verbose=True):
                 )
 
         # --------------------------------------------------
-        # 4. DECLENCHEMENTS
+        # 4. DÉCLENCHEMENTS
         # --------------------------------------------------
         distance_triggered = (
-            median_height <= target_height - SECURITY_LEEWAY
+                median_height <= target_height - SECURITY_LEEWAY
         )
 
         in_brightness_zone = (
-            target_height - BRIGHTNESS_DETECTION_WINDOW
-            <= median_height
-            <= target_height + BRIGHTNESS_DETECTION_WINDOW
+                target_height - BRIGHTNESS_DETECTION_WINDOW
+                <= median_height
+                <= target_height + BRIGHTNESS_DETECTION_WINDOW
         )
         brightness_low = (
-            brightness_reference is not None
-            and in_brightness_zone
-            and current_brightness <= brightness_reference * (
-                1 - BRIGHTNESS_DROP_DETECTION / 100
-            )
+                brightness_reference is not None
+                and in_brightness_zone
+                and current_brightness <= brightness_reference * (
+                        1 - BRIGHTNESS_DROP_DETECTION / 100
+                )
         )
 
         if brightness_low:
@@ -261,14 +258,14 @@ def run_intelligence(verbose=True):
             brightness_confirmations = 0
 
         brightness_triggered = (
-            brightness_confirmations >= BRIGHTNESS_CONFIRM_SAMPLES
+                brightness_confirmations >= BRIGHTNESS_CONFIRM_SAMPLES
         )
 
         if not (distance_triggered or brightness_triggered):
             continue
 
         # --------------------------------------------------
-        # 5. ACTIONS SIMULEES
+        # 5. ACTIONS SIMULÉES
         # --------------------------------------------------
         phase = "END" if actions_start_ran else "START"
         _log_trigger(
@@ -284,10 +281,8 @@ def run_intelligence(verbose=True):
             distance_history.clear()
             brightness_history.clear()
             brightness_reference = None
-            # preserve last_median_height
-            consecutive_invalid = 0
+            # préserve last_median_height
             no_echo_streak = 0
-            rejected_window_streak = 0
             brightness_confirmations = 0
             continue
 
@@ -301,11 +296,10 @@ if __name__ == "__main__":
     starts = []
     ends = []
     for seed in range(NUMBER_OF_SIMULATIONS):
-        reset_simulation(seed)
+        reset_simulation()
         if PRINT_EACH_SIMULATION:
-            print("Simulation des capteurs : descente de {:.0f} cm a 0 cm avec seed : {}".format(
-                INITIAL_HEIGHT_CM, seed
-            ))
+            print(
+                "Simulation des capteurs : descente de {:.0f} cm a 0 cm avec seed : {}".format(INITIAL_HEIGHT_CM, seed))
         result = run_intelligence(verbose=PRINT_EACH_SIMULATION)
         if result["status"] == "FINISHED":
             complete += 1

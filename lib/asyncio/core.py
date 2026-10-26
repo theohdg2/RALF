@@ -15,8 +15,11 @@ Core
 ====
 """
 
+import traceback
+
+import select
+
 from adafruit_ticks import ticks_ms as ticks, ticks_diff, ticks_add
-import sys, select, traceback
 
 # Import TaskQueue and Task, preferring built-in C code over Python code
 try:
@@ -69,6 +72,7 @@ class SingletonGenerator:
             self.exc.__traceback__ = None
             raise self.exc
 
+
 # Pause task execution for the given time (integer in milliseconds, uPy extension)
 # Use a SingletonGenerator to do it without allocating on the heap
 def sleep_ms(t, sgen=SingletonGenerator()):
@@ -114,8 +118,9 @@ class _NeverSingletonGenerator:
             self.state = None
             return None
         else:
-           self.exc.__traceback__ = None
-           raise self.exc
+            self.exc.__traceback__ = None
+            raise self.exc
+
 
 def _never(sgen=_NeverSingletonGenerator()):
     # assert sgen.state is None, "Check for a missing `await` in your code"

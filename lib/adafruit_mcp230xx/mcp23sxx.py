@@ -39,11 +39,11 @@ class MCP23SXX(MCP23XXX):
     """Base class for MCP23Sxx devices."""
 
     def __init__(
-        self,
-        spi: SPI,
-        address: int,
-        chip_select: digitalio.DigitalInOut,
-        baudrate: int = 100000,
+            self,
+            spi: SPI,
+            address: int,
+            chip_select: digitalio.DigitalInOut,
+            baudrate: int = 100000,
     ) -> None:
         self.cmd_write = MCP23SXX_CODE_WRITE | (address << 1)
         self.cmd_read = MCP23SXX_CODE_READ | (address << 1)

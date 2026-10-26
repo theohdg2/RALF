@@ -21,8 +21,9 @@ ports A and B.
 """
 
 from micropython import const
-from .mcp230xx import MCP230XX
+
 from .digital_inout import DigitalInOut
+from .mcp230xx import MCP230XX
 
 try:
     import typing  # pylint: disable=unused-import
@@ -52,7 +53,7 @@ class MCP23016(MCP230XX):
     """
 
     def __init__(
-        self, i2c: I2C, address: int = _MCP23016_ADDRESS, reset: bool = True
+            self, i2c: I2C, address: int = _MCP23016_ADDRESS, reset: bool = True
     ) -> None:
         super().__init__(i2c, address)
 

@@ -1,4 +1,3 @@
-import board
 import analogio
 
 

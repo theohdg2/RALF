@@ -92,13 +92,13 @@ class StepperMotor:
     """
 
     def __init__(
-        self,
-        ain1: Union[PWMOut, DigitalInOut],
-        ain2: Union[PWMOut, DigitalInOut],
-        bin1: Union[PWMOut, DigitalInOut],
-        bin2: Union[PWMOut, DigitalInOut],
-        *,
-        microsteps: Optional[int] = 16
+            self,
+            ain1: Union[PWMOut, DigitalInOut],
+            ain2: Union[PWMOut, DigitalInOut],
+            bin1: Union[PWMOut, DigitalInOut],
+            bin2: Union[PWMOut, DigitalInOut],
+            *,
+            microsteps: Optional[int] = 16
     ) -> None:
         if microsteps is None:
             #
@@ -160,8 +160,8 @@ class StepperMotor:
             # This ensures DOUBLE steps use full torque. Without it, we'd use
             #  partial torque from the microstepping curve (0xb504).
             if not microstepping and (
-                duty_cycles[leading_coil] == duty_cycles[trailing_coil]
-                and duty_cycles[leading_coil] > 0
+                    duty_cycles[leading_coil] == duty_cycles[trailing_coil]
+                    and duty_cycles[leading_coil] > 0
             ):
                 duty_cycles[leading_coil] = 0xFFFF
                 duty_cycles[trailing_coil] = 0xFFFF
@@ -180,7 +180,7 @@ class StepperMotor:
                 coil.duty_cycle = 0
 
     def onestep(  # pylint: disable=too-many-branches
-        self, *, direction: int = FORWARD, style: int = SINGLE
+            self, *, direction: int = FORWARD, style: int = SINGLE
     ) -> None:
         """Performs one step of a particular style. The actual rotation amount will vary by style.
         `SINGLE` and `DOUBLE` will normal cause a full step rotation. `INTERLEAVE` will normally
@@ -231,7 +231,7 @@ class StepperMotor:
 
                 current_interleave = self._current_microstep // half_step
                 if (style == SINGLE and current_interleave % 2 == 1) or (
-                    style == DOUBLE and current_interleave % 2 == 0
+                        style == DOUBLE and current_interleave % 2 == 0
                 ):
                     step_size = half_step
                 elif style in (SINGLE, DOUBLE):

@@ -29,6 +29,7 @@ _attrs = {
     "StreamWriter": "stream",
 }
 
+
 # Lazy loader, effectively does:
 #   global attr
 #   from .mod import attr

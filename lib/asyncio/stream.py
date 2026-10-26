@@ -248,7 +248,7 @@ async def stream_awrite(self, buf, off=0, sz=-1):
         buf = memoryview(buf)
         if sz == -1:
             sz = len(buf)
-        buf = buf[off : off + sz]
+        buf = buf[off: off + sz]
     self.write(buf)
     await self.drain()
 

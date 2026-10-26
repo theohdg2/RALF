@@ -6,10 +6,11 @@ ACTION = "ACTION"
 
 """Initialize the robot hardware and bring it to a safe idle state."""
 
+
 def initialize_robot(trap_position=0, motor_speed=0) -> bool:
     """Initialize the trapdoor, ultrasonic sensor and motor.
 
-    The previous behaviour is intentionally preserved: the function still tries the
+    The previous behavior is intentionally preserved: the function still tries the
     same setup steps and returns True/False based on the success of the sequence.
     """
     try:
@@ -26,6 +27,7 @@ def initialize_robot(trap_position=0, motor_speed=0) -> bool:
 
 """Monitor the robot while it waits for a start signal."""
 
+
 def monitor_idle_state():
     """Report the current brightness and ultrasonic distance while idle."""
     print(str(get_brightness()) + " % de luminosité & une hauteur de " + str(get_height()) + " cm.")
@@ -34,16 +36,17 @@ def monitor_idle_state():
 
 """Execute the action sequence upon pressing the start button."""
 
+
 def handle_start_action(decision_engine):
     """Launch the start action sequence and then return to idle wait mode."""
     print("Button pressed. Starting robot action sequence...")
     in_action_leds_state()
     decision_engine.run_intelligence()
-    print("Run succesfilly done !")
     waiting_leds_state()
 
 
 """Main operational loop: wait for start while monitoring sensors."""
+
 
 def loop():
     """Run the robot's waiting loop until the start button is pressed.
@@ -51,7 +54,7 @@ def loop():
     This keeps the original logic: the robot keeps reporting sensor values while
     idle, and when the button is pressed it runs the intelligence cycle.
     """
-    decision_engine = Intelligence(distance_sensor, brightness_sensor)
+    decision_engine = Intelligence(settings.distance_sensor, settings.brightness_sensor)
     state = WAITING
     waiting_leds_state()
 
@@ -70,8 +73,9 @@ def loop():
 
 """Entry point of the program."""
 
+
 def main():
-    """Initialise the robot and enter the main processing loop."""
+    """Initialize the robot and enter the main processing loop."""
     print("Starting robot...")
     print("Initializing components...")
 

@@ -13,11 +13,11 @@
 """
 
 import sys
+
+import adafruit_pixelbuf
 import board
 import digitalio
 from neopixel_write import neopixel_write
-
-import adafruit_pixelbuf
 
 try:
     # Used only for typing
@@ -27,10 +27,8 @@ try:
 except ImportError:
     pass
 
-
 __version__ = "6.3.11"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_NeoPixel.git"
-
 
 # Pixel color order constants
 RGB = "RGB"
@@ -103,14 +101,14 @@ class NeoPixel(adafruit_pixelbuf.PixelBuf):
     """
 
     def __init__(
-        self,
-        pin: microcontroller.Pin,
-        n: int,
-        *,
-        bpp: int = 3,
-        brightness: float = 1.0,
-        auto_write: bool = True,
-        pixel_order: str = None
+            self,
+            pin: microcontroller.Pin,
+            n: int,
+            *,
+            bpp: int = 3,
+            brightness: float = 1.0,
+            auto_write: bool = True,
+            pixel_order: str = None
     ):
         if not pixel_order:
             pixel_order = GRB if bpp == 3 else GRBW
@@ -120,8 +118,8 @@ class NeoPixel(adafruit_pixelbuf.PixelBuf):
 
         self._power = None
         if (
-            sys.implementation.version[0] >= 7
-            and getattr(board, "NEOPIXEL", None) == pin
+                sys.implementation.version[0] >= 7
+                and getattr(board, "NEOPIXEL", None) == pin
         ):
             power = getattr(board, "NEOPIXEL_POWER_INVERTED", None)
             polarity = power is None
@@ -153,10 +151,10 @@ class NeoPixel(adafruit_pixelbuf.PixelBuf):
         return self
 
     def __exit__(
-        self,
-        exception_type: Optional[Type[BaseException]],
-        exception_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+            self,
+            exception_type: Optional[Type[BaseException]],
+            exception_value: Optional[BaseException],
+            traceback: Optional[TracebackType],
     ):
         self.deinit()
 

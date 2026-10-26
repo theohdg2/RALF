@@ -122,9 +122,9 @@ class DCMotor:
         return self
 
     def __exit__(
-        self,
-        exception_type: Optional[Type[type]],
-        exception_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+            self,
+            exception_type: Optional[Type[type]],
+            exception_value: Optional[BaseException],
+            traceback: Optional[TracebackType],
     ) -> None:
         self.throttle = None

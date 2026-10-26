@@ -69,7 +69,7 @@ class DigitalInOut:
         self.value = value
 
     def switch_to_input(
-        self, pull: Pull = None, invert_polarity: bool = False, **kwargs
+            self, pull: Pull = None, invert_polarity: bool = False, **kwargs
     ) -> None:
         """Switch the pin state to a digital input with the provided starting
         pull-up resistor state (optional, no pull-up by default) and input polarity.  Note that

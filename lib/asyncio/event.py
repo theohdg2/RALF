@@ -17,6 +17,7 @@ Events
 
 from . import core
 
+
 # Event class for primitive events that can be waited on, set, and cleared
 class Event:
     """Create a new event which can be used to synchronize tasks. Events
@@ -72,6 +73,7 @@ class Event:
 # Note: Unlike Event, this is self-clearing.
 try:
     import uio
+
 
     class ThreadSafeFlag(uio.IOBase):
         def __init__(self):

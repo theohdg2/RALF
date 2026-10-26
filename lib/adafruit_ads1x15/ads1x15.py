@@ -131,18 +131,18 @@ class ADS1x15:
 
     # pylint: disable=too-many-instance-attributes
     def __init__(
-        self,
-        i2c: I2C,
-        gain: float = 1,
-        data_rate: Optional[int] = None,
-        mode: int = Mode.SINGLE,
-        comparator_queue_length: int = 0,
-        comparator_low_threshold: int = -32768,
-        comparator_high_threshold: int = 32767,
-        comparator_mode: int = Comp_Mode.TRADITIONAL,
-        comparator_polarity: int = Comp_Polarity.ACTIVE_LOW,
-        comparator_latch: int = Comp_Latch.NONLATCHING,
-        address: int = _ADS1X15_DEFAULT_ADDRESS,
+            self,
+            i2c: I2C,
+            gain: float = 1,
+            data_rate: Optional[int] = None,
+            mode: int = Mode.SINGLE,
+            comparator_queue_length: int = 0,
+            comparator_low_threshold: int = -32768,
+            comparator_high_threshold: int = 32767,
+            comparator_mode: int = Comp_Mode.TRADITIONAL,
+            comparator_polarity: int = Comp_Polarity.ACTIVE_LOW,
+            comparator_latch: int = Comp_Latch.NONLATCHING,
+            address: int = _ADS1X15_DEFAULT_ADDRESS,
     ):
         # pylint: disable=too-many-arguments
         self._last_pin_read = None
@@ -416,8 +416,8 @@ class ADS1x15:
         """
         if pin_config is None:
             pin_config = (
-                self._read_register(_ADS1X15_POINTER_CONFIG) & 0x7000
-            ) >> _ADS1X15_CONFIG_MUX_OFFSET
+                                 self._read_register(_ADS1X15_POINTER_CONFIG) & 0x7000
+                         ) >> _ADS1X15_CONFIG_MUX_OFFSET
 
         if self.mode == Mode.SINGLE:
             config = _ADS1X15_CONFIG_OS_SINGLE

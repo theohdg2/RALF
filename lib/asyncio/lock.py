@@ -17,6 +17,7 @@ Locks
 
 from . import core
 
+
 # Lock class for primitive mutex capability
 class Lock:
     """Create a new lock which can be used to coordinate tasks. Locks start in

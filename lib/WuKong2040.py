@@ -1,34 +1,37 @@
 import time
+
 import board
-import pwmio
 import digitalio
 import neopixel_write
-import asyncio
+import pwmio
 from micropython import const
+
+import asyncio
+
 
 class WuKong2040:
     def __init__(self):
-         self._ButtonA = digitalio.DigitalInOut(board.GP18)
-         self._ButtonB = digitalio.DigitalInOut(board.GP19)
-         
-         self._M1A = pwmio.PWMOut(board.GP21, frequency=1000)
-         self._M1B = pwmio.PWMOut(board.GP20, frequency=1000)
-         
-         self._M2A = pwmio.PWMOut(board.GP11, frequency=1000)
-         self._M2B = pwmio.PWMOut(board.GP10, frequency=1000)
-         
-         self._M3A = pwmio.PWMOut(board.GP15, frequency=1000)
-         self._M3B = pwmio.PWMOut(board.GP14, frequency=1000)
-         
-         self._M4A = pwmio.PWMOut(board.GP13, frequency=1000)
-         self._M4B = pwmio.PWMOut(board.GP12, frequency=1000)
-         
-         self.neopixelpin = digitalio.DigitalInOut(board.GP22)
-         self.neopixelpin.direction = digitalio.Direction.OUTPUT
-         self.colorlist = [0, 0, 0, 0, 0, 0,]
-         neopixel_write.neopixel_write(self.neopixelpin, bytearray(self.colorlist))
+        self._ButtonA = digitalio.DigitalInOut(board.GP18)
+        self._ButtonB = digitalio.DigitalInOut(board.GP19)
 
-    def rainbow_led(self,num = "all", red = 0 , green = 0, blue = 0):
+        self._M1A = pwmio.PWMOut(board.GP21, frequency=1000)
+        self._M1B = pwmio.PWMOut(board.GP20, frequency=1000)
+
+        self._M2A = pwmio.PWMOut(board.GP11, frequency=1000)
+        self._M2B = pwmio.PWMOut(board.GP10, frequency=1000)
+
+        self._M3A = pwmio.PWMOut(board.GP15, frequency=1000)
+        self._M3B = pwmio.PWMOut(board.GP14, frequency=1000)
+
+        self._M4A = pwmio.PWMOut(board.GP13, frequency=1000)
+        self._M4B = pwmio.PWMOut(board.GP12, frequency=1000)
+
+        self.neopixelpin = digitalio.DigitalInOut(board.GP22)
+        self.neopixelpin.direction = digitalio.Direction.OUTPUT
+        self.colorlist = [0, 0, 0, 0, 0, 0, ]
+        neopixel_write.neopixel_write(self.neopixelpin, bytearray(self.colorlist))
+
+    def rainbow_led(self, num="all", red=0, green=0, blue=0):
         self.red = red
         self.green = green
         self.blue = blue
@@ -36,12 +39,12 @@ class WuKong2040:
         if self.num == 0:
             self.colorlist[0] = self.green
             self.colorlist[1] = self.red
-            self.colorlist[2] = self.blue 
+            self.colorlist[2] = self.blue
             neopixel_write.neopixel_write(self.neopixelpin, bytearray(self.colorlist))
         if self.num == 1:
             self.colorlist[3] = self.green
             self.colorlist[4] = self.red
-            self.colorlist[5] = self.blue 
+            self.colorlist[5] = self.blue
             neopixel_write.neopixel_write(self.neopixelpin, bytearray(self.colorlist))
         if self.num == "all":
             self.colorlist[0] = self.green
@@ -49,10 +52,10 @@ class WuKong2040:
             self.colorlist[2] = self.blue
             self.colorlist[3] = self.green
             self.colorlist[4] = self.red
-            self.colorlist[5] = self.blue 
+            self.colorlist[5] = self.blue
             neopixel_write.neopixel_write(self.neopixelpin, bytearray(self.colorlist))
-        
-    def button_is_pressed(self, buttonName = "ButtonA"):
+
+    def button_is_pressed(self, buttonName="ButtonA"):
         self._buttonName = buttonName
         if self._buttonName == "ButtonA":
             if self._ButtonA.value == False:
@@ -67,81 +70,76 @@ class WuKong2040:
                 time.sleep(0.1)
                 if self._ButtonA.value == False and self._ButtonB.value == False:
                     return True
-            
-    def motor(self, motorNumber= "M1",speed=0):
+
+    def motor(self, motorNumber="M1", speed=0):
         self._motorNumber = motorNumber
         self._speed = speed
         if self._motorNumber == "M1":
             if speed > 0:
                 self._M1A.duty_cycle = speed * 655
                 self._M1B.duty_cycle = 0
-                
+
             if speed < 0:
                 self._M1A.duty_cycle = 0
                 self._M1B.duty_cycle = -speed * 655
-                
+
             if speed == 0:
                 self._M1A.duty_cycle = 0
                 self._M1B.duty_cycle = 0
-        
+
         if self._motorNumber == "M2":
             if speed > 0:
                 self._M2A.duty_cycle = speed * 655
                 self._M2B.duty_cycle = 0
-                
+
             if speed < 0:
                 self._M2A.duty_cycle = 0
                 self._M2B.duty_cycle = -speed * 655
-                
+
             if speed == 0:
                 self._M2A.duty_cycle = 0
                 self._M2B.duty_cycle = 0
-        
-        
+
         if self._motorNumber == "M3":
             if speed > 0:
                 self._M3A.duty_cycle = speed * 655
                 self._M3B.duty_cycle = 0
-                
+
             if speed < 0:
                 self._M3A.duty_cycle = 0
                 self._M3B.duty_cycle = -speed * 655
-                
+
             if speed == 0:
                 self._M3A.duty_cycle = 0
                 self._M3B.duty_cycle = 0
-                
-                
+
         if self._motorNumber == "M4":
             if speed > 0:
                 self._M4A.duty_cycle = speed * 655
                 self._M4B.duty_cycle = 0
-                
+
             if speed < 0:
                 self._M4A.duty_cycle = 0
                 self._M4B.duty_cycle = -speed * 655
-                
+
             if speed == 0:
                 self._M4A.duty_cycle = 0
                 self._M4B.duty_cycle = 0
-                
+
     def motorStop(self, motorNumber):
         self._motorNumber = motorNumber
         if self._motorNumber == "M1":
             self._M1A.duty_cycle = 65535
             self._M1B.duty_cycle = 65535
 
-        
         if self._motorNumber == "M2":
             self._M2A.duty_cycle = 65535
             self._M2B.duty_cycle = 65535
-        
-        
+
         if self._motorNumber == "M3":
             self._M3A.duty_cycle = 65535
             self._M3B.duty_cycle = 65535
-                
-                
+
         if self._motorNumber == "M4":
             self._M4A.duty_cycle = 65535
             self._M4B.duty_cycle = 65535
@@ -157,12 +155,8 @@ This is the `Music` class that you can use to play melodies through a buzzer
 in CircuitPython. The library was inspired by the micro:bit `music` module.
 """
 
-
-
-
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/elecfreaks/circuitpython_ef_music.git"
-
 
 _ARTICULATION_MS = const(10)  # articulation between notes in milliseconds
 _MIDDLE_FREQUENCIES = [
@@ -353,10 +347,10 @@ class Music:
             if sharp:
                 if shift_count > 0:
                     frequency = _MIDDLE_SHARPS_FREQUENCIES[note_index] \
-                        << shift_count
+                                << shift_count
                 else:
                     frequency = _MIDDLE_SHARPS_FREQUENCIES[note_index] \
-                        >> -shift_count
+                                >> -shift_count
             else:
                 if shift_count > 0:
                     frequency = _MIDDLE_FREQUENCIES[note_index] << shift_count
@@ -482,10 +476,4 @@ class Music:
         self._duration = 4
 
 
-
-
 music = Music(board.GP9)
-       
-
-
-

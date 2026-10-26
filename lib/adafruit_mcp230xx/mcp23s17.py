@@ -14,8 +14,9 @@ CircuitPython module for the MCP23S17 SPI I/O extenders.
 """
 
 from micropython import const
-from .mcp23sxx import MCP23SXX
+
 from .digital_inout import DigitalInOut
+from .mcp23sxx import MCP23SXX
 
 try:
     from typing import List
@@ -54,12 +55,12 @@ class MCP23S17(MCP23SXX):
     """
 
     def __init__(
-        self,
-        spi: SPI,
-        chip_select: digitalio.DigitalInOut,
-        address: int = _MCP23S17_ADDRESS,
-        reset: bool = True,
-        baudrate: int = 100000,
+            self,
+            spi: SPI,
+            chip_select: digitalio.DigitalInOut,
+            address: int = _MCP23S17_ADDRESS,
+            reset: bool = True,
+            baudrate: int = 100000,
     ) -> None:
         super().__init__(spi, address, chip_select, baudrate=baudrate)
         # For user information

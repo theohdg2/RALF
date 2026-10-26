@@ -82,6 +82,7 @@ except (ImportError, NameError):
 
             _monotonic_ns()  # Check that monotonic_ns is usable
 
+
             def ticks_ms() -> int:
                 """Return the time in milliseconds since an unspecified moment,
                 wrapping after 2**29ms.
@@ -101,6 +102,7 @@ except (ImportError, NameError):
 
         except (ImportError, NameError, NotImplementedError):
             from time import monotonic as _monotonic
+
 
             def ticks_ms() -> int:
                 """Return the time in milliseconds since an unspecified moment,

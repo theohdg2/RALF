@@ -1,9 +1,11 @@
-import board
 import pwmio
+
 from adafruit_motor import motor, servo
+
 
 def help():
     print("Motor help")
+
 
 class DCMotor:
     def __init__(self, pinA, pinB):
@@ -15,10 +17,10 @@ class DCMotor:
     def reverse(self):
         self.pinA, self.pinB = self.pinB, self.pinA
 
-    def set_speed(self, speed = 0):
+    def set_speed(self, speed=0):
         setDCMotor = motor.DCMotor(self.pwmA, self.pwmB)
         self.speed = speed
-        setDCMotor.throttle = self.speed/100
+        setDCMotor.throttle = self.speed / 100
 
 
 class Servo:
@@ -30,7 +32,7 @@ class Servo:
         setServo = servo.Servo(self.pwm)
         setServo.set_pulse_width_range(min_pulse, max_pulse)
 
-    def set_angle(self, angle = 90):
+    def set_angle(self, angle=90):
         setServo = servo.Servo(self.pwm)
         self.angle = angle
         setServo.angle = self.angle

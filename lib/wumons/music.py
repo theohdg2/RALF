@@ -1,10 +1,10 @@
 import time
-import board
+
 import pwmio
-import digitalio
-import neopixel_write
-import asyncio
 from micropython import const
+
+import asyncio
+
 """
 `Music`
 ====================================================
@@ -12,12 +12,8 @@ This is the `Music` class that you can use to play melodies through a buzzer
 in CircuitPython. The library was inspired by the micro:bit `music` module.
 """
 
-
-
-
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/elecfreaks/circuitpython_ef_music.git"
-
 
 _ARTICULATION_MS = const(10)  # articulation between notes in milliseconds
 _MIDDLE_FREQUENCIES = [
@@ -208,10 +204,10 @@ class Music:
             if sharp:
                 if shift_count > 0:
                     frequency = _MIDDLE_SHARPS_FREQUENCIES[note_index] \
-                        << shift_count
+                                << shift_count
                 else:
                     frequency = _MIDDLE_SHARPS_FREQUENCIES[note_index] \
-                        >> -shift_count
+                                >> -shift_count
             else:
                 if shift_count > 0:
                     frequency = _MIDDLE_FREQUENCIES[note_index] << shift_count

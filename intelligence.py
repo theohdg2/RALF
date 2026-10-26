@@ -1,4 +1,3 @@
-from lib.wumons.sensor import Sensor
 from utils import *
 
 
@@ -6,7 +5,7 @@ class Intelligence:
     """Decision engine for the robot descent sequence.
 
     The logic is intentionally kept close to the previous implementation so the
-    robot behaviour remains unchanged while the code becomes easier to follow.
+    robot behavior remains unchanged while the code becomes easier to follow.
     """
 
     distance_sensor: DFRobot_URM09
@@ -52,7 +51,7 @@ class Intelligence:
         if self.max_height_change_cm_per_reading < 1:
             return False
 
-        # Le calcul actuel de la médiane utilise exactement 3 mesures.
+        # Le calcul actuel de la médiane utilise exactement trois mesures.
         if self.distance_samples != 3:
             return False
 
@@ -82,18 +81,20 @@ class Intelligence:
         print("Déclenchement des actions du début...")
         print("Ouverture de la trappe.")
         set_trapdoor_position(self.trapdoor_open_angle)
-        play_music(AvailableMusics.BT_CONNECTED)
 
-    def _run_end_actions(self):
+    @staticmethod
+    def _run_end_actions():
         print("Déclenchement des actions de fin...")
         print("Arrêt du robot.")
         forward(0)
         print("Fermeture de la trappe.")
         set_trapdoor_position(0)
+        print("Run successfully done !")
         # TODO: Mettre les actions funs ci-dessous
         play_music(AvailableMusics.BIRTHDAY)
 
-    def _run_emergency_actions(self):
+    @staticmethod
+    def _run_emergency_actions():
         print("Arrêt d'urgence du robot...")
         stop()
         play_music(AvailableMusics.BT_DISCONNECTED)
@@ -131,7 +132,7 @@ class Intelligence:
                     return
                 continue
 
-            # Mediane glissante : une valeur erronée sur trois est ignoree.
+            # Médiane glissante : une valeur erronée sur trois est ignoree.
             distance_history.append(current_height)
             if len(distance_history) > self.distance_samples:
                 distance_history.pop(0)
@@ -140,7 +141,7 @@ class Intelligence:
 
             median_height = sorted(distance_history)[1]
 
-            # Rejeter les sauts impossibles entre medianes successives.
+            # Rejeter les sauts impossibles entre médianes successives.
             if last_median_height is not None:
                 allowed_change = (self.max_height_change_cm_per_reading * (consecutive_invalid + 1))
                 if abs(median_height - last_median_height) > allowed_change:
@@ -162,10 +163,11 @@ class Intelligence:
                 can_calibrate = (median_height > self.start_propagation_height + SECURITY_LEEWAY)
             else:
                 target_height = self.end_propagation_height
-                can_calibrate = (self.start_propagation_height - SECURITY_LEEWAY > median_height > self.end_propagation_height + SECURITY_LEEWAY)
+                can_calibrate = (
+                            self.start_propagation_height - SECURITY_LEEWAY > median_height > self.end_propagation_height + SECURITY_LEEWAY)
 
             # --------------------------------------------------
-            # 3. REFERENCE LUMINEUSE (moyenne glissante, puis figee)
+            # 3. REFERENCE LUMINEUSE (moyenne glissante, puis figée)
             # --------------------------------------------------
             if brightness_reference is None:
                 if can_calibrate:
@@ -176,14 +178,17 @@ class Intelligence:
                     brightness_reference = (sum(brightness_history) / len(brightness_history))
 
             # --------------------------------------------------
-            # 4. DECLENCHEMENTS
+            # 4. DÉCLENCHEMENTS
             # --------------------------------------------------
             # Secours : 18 cm pour START, 8 cm pour END (marge = 2).
             distance_triggered = (median_height <= target_height - SECURITY_LEEWAY)
 
             # Detection du scotch uniquement autour de la cible (+/- 1 cm).
-            in_brightness_zone = (target_height - self.brightness_detection_window <= median_height <= target_height + self.brightness_detection_window)
-            brightness_low = (brightness_reference is not None and in_brightness_zone and current_brightness <= brightness_reference * (1 - BRIGHTNESS_DROP_DETECTION / 100))
+            in_brightness_zone = (
+                        target_height - self.brightness_detection_window <= median_height <= target_height + self.brightness_detection_window)
+            brightness_low = (
+                        brightness_reference is not None and in_brightness_zone and current_brightness <= brightness_reference * (
+                            1 - BRIGHTNESS_DROP_DETECTION / 100))
 
             if brightness_low:
                 brightness_confirmations += 1
@@ -218,19 +223,19 @@ class Intelligence:
 R.A.L.F. - Intelligence de descente
 
 START (cible 20 cm, marge 2 cm) :
-- Calibrer la luminosite avant 22 cm.
-- Detecter le scotch entre 19 et 21 cm si deux mesures successives
+- Calibrer la luminosité avant 22 cm.
+- Détecter le scotch entre 19 et 21 cm si deux mesures successives
   ont une baisse relative suffisante.
-- Declencher le secours a 18 cm ou moins.
+- Déclencher le secours a 18 cm ou moins.
 
 END (cible 10 cm, marge 2 cm) :
 - Recalibrer sur le cable entre 18 et 12 cm.
-- Detecter le scotch entre 9 et 11 cm selon les memes conditions.
-- Declencher le secours a 8 cm ou moins, puis arreter le moteur.
+- Détecter le scotch entre 9 et 11 cm selon les memes conditions.
+- Déclencher le secours a 8 cm ou moins, puis arrêter le moteur.
 
 Dans les deux phases :
-- Ignorer une mesure ultrasonique egale a -1.
-- Utiliser la mediane glissante des trois dernieres mesures valides.
-- Ignorer les sauts de distance incoherents.
-- Arreter le moteur apres huit mesures de distance invalides consecutives.
+- Ignorer une mesure ultrasonique égale a -1.
+- Utiliser la médiane glissante des trois dernières mesures valides.
+- Ignorer les sauts de distance incohérents.
+- Arrêter le moteur apres huit mesures de distance invalides consécutives.
 """

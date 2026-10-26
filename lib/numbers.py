@@ -34,6 +34,7 @@ from abc import ABCMeta, abstractmethod
 
 __all__ = ["Number", "Complex", "Real", "Rational", "Integral"]
 
+
 class Number(metaclass=ABCMeta):
     """All numbers inherit from this class.
 
@@ -166,6 +167,7 @@ class Complex(Number):
         """self == other"""
         raise NotImplementedError
 
+
 Complex.register(complex)
 
 
@@ -285,6 +287,7 @@ class Real(Complex):
     def conjugate(self):
         """Conjugate is a no-op for Reals."""
         return +self
+
 
 Real.register(float)
 
@@ -423,5 +426,6 @@ class Integral(Rational):
     def denominator(self):
         """Integers have a denominator of 1."""
         return 1
+
 
 Integral.register(int)

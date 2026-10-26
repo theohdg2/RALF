@@ -1,4 +1,3 @@
-
 # Propagation
 START_PROPAGATION_HEIGHT = 20 # Hauteur en cm pour le début du largage
 END_PROPAGATION_HEIGHT = 10 # Hauteur en cm pour la fin du largage

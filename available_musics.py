@@ -1,8 +1,10 @@
 from wumons import Music
 
 """
-    :class AvailableMusics: This class contains predefined music sequences that can be played using the Wukong Music Player. Each music sequence is represented as a list of notes and their durations.
+    :class AvailableMusics: This class contains predefined music sequences that can be played using the wukong Music Player. Each music sequence is represented as a list of notes and their durations.
 """
+
+
 class AvailableMusics(Music):
     LASER_BEAM = [
         "c6:1", "b5:1", "a5:1", "g5:1", "f5:1", "e5:1", "d5:1", "c5:2",
@@ -23,4 +25,3 @@ class AvailableMusics(Music):
 
     def __init__(self, pin, ticks=4, bpm=120):
         super().__init__(pin, ticks, bpm)
-

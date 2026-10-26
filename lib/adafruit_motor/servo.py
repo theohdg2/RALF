@@ -25,7 +25,6 @@ try:
 except (ImportError, NotImplementedError):
     pass
 
-
 __version__ = "3.4.13"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_Motor.git"
 
@@ -40,13 +39,13 @@ class _BaseServo:  # pylint: disable-msg=too-few-public-methods
     :param int max_pulse: The maximum pulse length of the servo in microseconds."""
 
     def __init__(
-        self, pwm_out: "PWMOut", *, min_pulse: int = 750, max_pulse: int = 2250
+            self, pwm_out: "PWMOut", *, min_pulse: int = 750, max_pulse: int = 2250
     ) -> None:
         self._pwm_out = pwm_out
         self.set_pulse_width_range(min_pulse, max_pulse)
 
     def set_pulse_width_range(
-        self, min_pulse: int = 750, max_pulse: int = 2250
+            self, min_pulse: int = 750, max_pulse: int = 2250
     ) -> None:
         """Change min and max pulse widths."""
         self._min_duty = int((min_pulse * self._pwm_out.frequency) / 1000000 * 0xFFFF)
@@ -105,12 +104,12 @@ class Servo(_BaseServo):
     """
 
     def __init__(
-        self,
-        pwm_out: "PWMOut",
-        *,
-        actuation_range: int = 180,
-        min_pulse: int = 750,
-        max_pulse: int = 2250
+            self,
+            pwm_out: "PWMOut",
+            *,
+            actuation_range: int = 180,
+            min_pulse: int = 750,
+            max_pulse: int = 2250
     ) -> None:
         super().__init__(pwm_out, min_pulse=min_pulse, max_pulse=max_pulse)
         self.actuation_range = actuation_range
@@ -163,9 +162,9 @@ class ContinuousServo(_BaseServo):
         return self
 
     def __exit__(
-        self,
-        exception_type: Optional[Type[type]],
-        exception_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+            self,
+            exception_type: Optional[Type[type]],
+            exception_value: Optional[BaseException],
+            traceback: Optional[TracebackType],
     ) -> None:
         self.throttle = 0

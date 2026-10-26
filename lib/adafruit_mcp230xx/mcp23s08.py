@@ -14,8 +14,9 @@ CircuitPython module for the MCP23S08 I2C I/O extenders.
 """
 
 from micropython import const
-from .mcp23sxx import MCP23SXX
+
 from .digital_inout import DigitalInOut
+from .mcp23sxx import MCP23SXX
 
 try:
     import typing  # pylint: disable=unused-import
@@ -47,12 +48,12 @@ class MCP23S08(MCP23SXX):
     """
 
     def __init__(
-        self,
-        spi: SPI,
-        chip_select: digitalio.DigitalInOut,
-        address: int = _MCP23S08_ADDRESS,
-        reset: bool = True,
-        baudrate: int = 100000,
+            self,
+            spi: SPI,
+            chip_select: digitalio.DigitalInOut,
+            address: int = _MCP23S08_ADDRESS,
+            reset: bool = True,
+            baudrate: int = 100000,
     ) -> None:
         super().__init__(spi, address, chip_select, baudrate=baudrate)
         # For user information

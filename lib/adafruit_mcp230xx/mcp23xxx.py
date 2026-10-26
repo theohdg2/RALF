@@ -29,11 +29,11 @@ class MCP23XXX:
     """Base class for MCP23xxx devices."""
 
     def __init__(
-        self,
-        bus_device: Union[I2C, SPI],
-        address: int,
-        chip_select: Optional[digitalio.DigitalInOut] = None,
-        baudrate: int = 100000,
+            self,
+            bus_device: Union[I2C, SPI],
+            address: int,
+            chip_select: Optional[digitalio.DigitalInOut] = None,
+            baudrate: int = 100000,
     ) -> None:
         if chip_select is None:
             self._device = i2c_device.I2CDevice(bus_device, address)

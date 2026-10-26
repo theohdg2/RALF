@@ -40,7 +40,7 @@ class DFRobot_URM09(object):
             i2c.write(buf)
 
     def set_mode_range(
-        self, measureMode=MEASURE_MODE_AUTOMATIC, measureRange=MEASURE_RANG_500
+            self, measureMode=MEASURE_MODE_AUTOMATIC, measureRange=MEASURE_RANG_500
     ):
         # Config the device
         self.__set_item__(0x07, (measureMode | measureRange) & 0xFF)

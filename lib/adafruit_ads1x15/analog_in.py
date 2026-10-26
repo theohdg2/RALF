@@ -30,7 +30,7 @@ class AnalogIn:
     """
 
     def __init__(
-        self, ads: ADS1x15, positive_pin: int, negative_pin: Optional[int] = None
+            self, ads: ADS1x15, positive_pin: int, negative_pin: Optional[int] = None
     ):
         self._ads = ads
         self._pin_setting = positive_pin

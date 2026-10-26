@@ -1,10 +1,10 @@
 # import wumons libraries
-import wumons
+import supervisor
 
+import wumons
 from available_musics import AvailableMusics
 from servo import Servo
 from wumons_i2c.dfr_urm09 import DFRobot_URM09
-import supervisor
 
 START_PROPAGATION_HEIGHT = supervisor.get_setting("START_PROPAGATION_HEIGHT", 20)
 END_PROPAGATION_HEIGHT = supervisor.get_setting("END_PROPAGATION_HEIGHT", 10)
@@ -20,10 +20,9 @@ BRIGHTNESS_CONFIRM_SAMPLES = supervisor.get_setting("BRIGHTNESS_CONFIRM_SAMPLES"
 MIN_BRIGHTNESS_SAMPLES = supervisor.get_setting("MIN_BRIGHTNESS_SAMPLES", 5)
 BRIGHTNESS_DETECTION_WINDOW = supervisor.get_setting("BRIGHTNESS_DETECTION_WINDOW", 1)
 
-TRAPDOOR_OPEN_ANGLE = supervisor.get_setting("TRAPDOOR_OPEN_ANGLE",45)
+TRAPDOOR_OPEN_ANGLE = supervisor.get_setting("TRAPDOOR_OPEN_ANGLE", 45)
 
-
-#define global variables
+# define global variables
 NEOPIXEL_BRIGHTNESS = 0.2
 NEOPIXEL_AUTO_WRITE = False
 TRAPDOOR_GP = wumons.board.GP6
@@ -32,9 +31,9 @@ TRAPDOOR_PULSE_RANGE = Servo.BIG_SERVO_PULSE
 START_BUTTON_GP = wumons.board.GP28
 BRIGHTNESS_SENSOR = wumons.board.GP26
 
-# define Wukong Leds
-wumons_leds = wumons.NeoPixel(wumons.board.GP22,2, brightness=NEOPIXEL_BRIGHTNESS, auto_write=NEOPIXEL_AUTO_WRITE)
-# define Wukong Music Player
+# define wukong Leds
+wumons_leds = wumons.NeoPixel(wumons.board.GP22, 2, brightness=NEOPIXEL_BRIGHTNESS, auto_write=NEOPIXEL_AUTO_WRITE)
+# define wukong Music Player
 wumons_music_player = AvailableMusics(wumons.board.GP9)
 #   Connect the four possible motors
 motor = wumons.DCMotor(wumons.board.GP10, wumons.board.GP11)
@@ -42,7 +41,7 @@ motor = wumons.DCMotor(wumons.board.GP10, wumons.board.GP11)
 trapdoor = Servo(TRAPDOOR_GP, TRAPDOOR_PULSE_RANGE)
 # Connect the brightness sensor
 brightness_sensor = wumons.Sensor(BRIGHTNESS_SENSOR)
-# connect the button sensor wich starts the robot
+# connect the button sensor which starts the robot
 start_button = wumons.Sensor(START_BUTTON_GP)
 
 """ 
