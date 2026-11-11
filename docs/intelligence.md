@@ -1,91 +1,100 @@
-# R.A.L.F. — Intelligence et architecture de décision
+# R.A.L.F. — Intelligence embarquée à trois repères
 
-`intelligence.py` contient la logique de détection expérimentale du robot. Elle analyse successivement un repère `START`
-autour de **20 cm** puis un repère `END` autour de **10 cm**. La décision repose sur un filtrage ultrasonique et sur une
-baisse relative de luminosité dans la zone cible.
+Ce document décrit le **patch à trois scotchs et trois commandes moteur**, basé sur le commit GitHub `09d18173` (`update small bugs`). Il remplace la description précédente, limitée à START et END. Le code de référence est `intelligence.py` du patch, appelé depuis `code.py`.
 
-> [!NOTE]
-> La logique décrite ici est bien celle actuellement appelée par `code.py` via `brain.run_intelligence()`. La structure
-de la boucle principale a été refactorisée pour clarifier les états `WAITING` et `ACTION`, mais la logique de détection
-elle-même reste inchangée.
+## 1. Séquence de mission
 
-## Architecture de la boucle principale
+| Phase interne | Événement attendu | Trappe | Moteur |
+|---|---|---|---|
+| `BEFORE_RELEASE` | Recherche du 1er scotch **noir** | Fermée | `MOTOR_POWER_BEFORE_RELEASE` |
+| `DURING_RELEASE` | 1er détecté, recherche du 2e scotch **noir** | Ouverte | `MOTOR_POWER_DURING_RELEASE` |
+| `AFTER_RELEASE` | 2e détecté, recherche du 3e repère | Fermée | `MOTOR_POWER_AFTER_RELEASE` |
+| Fin de mission | 3e repère ou hauteur d'arrêt atteinte | Fermée | `stop()` |
 
-Le programme principal a été organisé en deux blocs distincts :
+Le **deuxième repère ferme la trappe, mais ne stoppe pas le moteur**. L'arrêt intervient à la troisième étape. Les libellés internes `BEFORE_RELEASE`, `DURING_RELEASE` et `AFTER_RELEASE` correspondent aux trois états de `Intelligence`.
 
-- `WAITING` : le robot surveille le bouton de démarrage et affiche sa luminosité / distance.
-- `ACTION` : lorsque le bouton est appuyé, il exécute `Intelligence.run_intelligence()`.
+```mermaid
+flowchart TD
+    A[Appui sur le bouton] --> B[Descente : puissance avant largage]
+    B --> C{Premier repère noir détecté ?}
+    C -- Non --> B
+    C -- Oui --> D[Ouvrir la trappe et passer à la puissance de largage]
+    D --> E{Deuxième repère noir détecté ?}
+    E -- Non --> D
+    E -- Oui --> F[Fermer la trappe et passer à la puissance après largage]
+    F --> G{Troisième repère ou hauteur d'arrêt atteinte ?}
+    G -- Non --> F
+    G -- Oui --> H[Arrêter le moteur : mission terminée]
+    B -. Incident / dépassement de durée .-> S[Arrêt de sécurité]
+    D -. Incident / dépassement de durée .-> S
+    F -. Incident / dépassement de durée .-> S
+```
 
-Cette structure est gérée dans `code.py`, tandis que `intelligence.py` porte la logique métier de détection et d’action.
+## 2. Détection des repères
 
-## Réglages par défaut
+**Ultrasons :** lecture de la distance au sol avec le DFRobot URM09, trois mesures par médiane, vérification de cohérence avec la dernière médiane acceptée. Les mesures `None`, négatives et supérieures à 320 cm sont rejetées. Au bout de `MAX_INVALID_READINGS` rejets consécutifs, le programme s'arrête.
 
-Les valeurs sont définies dans `settings.py` et peuvent être remplacées via `supervisor.get_setting()`.
+Le saut admissible est :
 
-| Paramètre                          | Valeur par défaut | Utilisation                                          |
-|------------------------------------|------------------:|------------------------------------------------------|
-| `START_PROPAGATION_HEIGHT`         |             20 cm | Cible START                                          |
-| `END_PROPAGATION_HEIGHT`           |             10 cm | Cible END                                            |
-| `SECURITY_LEEWAY`                  |              1 cm | Seuil de secours sous chaque cible                   |
-| `BRIGHTNESS_DROP_DETECTION`        |              30 % | Baisse lumineuse minimale par rapport à la référence |
-| `DISTANCE_SAMPLES`                 |                 3 | Nombre de lectures pour la médiane                   |
-| `MAX_HEIGHT_CHANGE_CM_PER_READING` |              2 cm | Variation maximale de médiane acceptée par lecture   |
-| `MAX_INVALID_READINGS`             |                 8 | Nombre d’anomalies consécutives avant arrêt          |
-| `BRIGHTNESS_SAMPLES`               |                20 | Taille maximale de l’historique lumineux             |
-| `MIN_BRIGHTNESS_SAMPLES`           |                 5 | Nombre minimum de mesures pour établir une référence |
-| `BRIGHTNESS_CONFIRM_SAMPLES`       |                 2 | Mesures sombres consécutives exigées                 |
-| `BRIGHTNESS_DETECTION_WINDOW`      |              1 cm | Demi-largeur de la fenêtre de détection lumineuse    |
+```python
+allowed_change = min(
+    MAX_HEIGHT_CHANGE_CM_PER_READING * (consecutive_invalid + 1),
+    MAX_MEDIAN_JUMP_CM,
+)
+```
 
-Avec les valeurs par défaut, la luminosité peut déclencher `START` entre **19 et 21 cm** et `END` entre **9 et 11 cm**.
-Le secours ultrasonique déclenche `START` à **19 cm ou moins** et `END` à **9 cm ou moins** selon la médiane filtrée.
+Le plafond évite une tolérance illimitée après plusieurs erreurs, sans garantir à lui seul une précision absolue. `MAX_MEDIAN_JUMP_CM` devra être confronté au déplacement réel entre lectures.
 
-## Déroulement de l’intelligence
+**Luminosité :** le robot constitue une moyenne de référence du câble avant chaque repère ; la référence est figée à l'approche de la cible. Un déclenchement exige une variation dans la fenêtre `BRIGHTNESS_DETECTION_WINDOW`, confirmée sur `BRIGHTNESS_CONFIRM_SAMPLES` lectures. À chaque changement de phase, l'historique optique est remis à zéro, tandis que **l'historique ultrasonique est conservé** pour maintenir la cohérence.
 
-1. `run_intelligence()` commande le moteur vers l’avant à 100 %.
-2. À chaque tour, la fonction lit la distance et la luminosité.
-3. Une distance `None`, négative ou supérieure à 320 cm est invalide : l’historique des distances est réinitialisé et le
-   compteur de sécurité augmente.
-4. Après `DISTANCE_SAMPLES` mesures valides, le code applique la médiane glissante. Si une variation de médiane est trop
-   brusque, la lecture est rejetée.
-5. **Calibration START :** tant que la médiane est supérieure à `START_PROPAGATION_HEIGHT + SECURITY_LEEWAY`, le code
-   collecte des valeurs lumineuses en vue d’établir une référence.
-6. **Détection START :** dans la zone cible, si la luminosité tombe suffisamment et si la condition est confirmée
-   plusieurs fois, alors `START` est déclenché. Sinon, le secours ultrasonique peut aussi déclencher la même action.
-7. Après `START`, la logique réinitialise les historiques pour la phase `END` et recalibre la référence sur le câble
-   gris.
-8. **Détection END :** lorsque la médiane entre dans la fenêtre de fin, la logique applique la même logique.
-   `_run_end_actions()` arrête le moteur et ferme la trappe.
-9. Une lecture invalide répétée ou un saut incohérent trop important déclenche `_run_emergency_actions()` et stoppe le
-   robot.
+### Premier et deuxième scotch noirs
 
-La médiane réduit l’effet d’une mesure isolée aberrante. Elle n’élimine pas toutes les erreurs, mais apporte une
-stabilité utile dans le cadre d’un prototype et d’une validation simulée.
+- Baisse lumineuse d'au moins `BRIGHTNESS_DROP_DETECTION` par rapport à la référence locale, dans la fenêtre de hauteur.
+- En secours : médiane inférieure ou égale à `hauteur_cible - SECURITY_LEEWAY`.
+- Avec les valeurs d'exemple, cibles 20 et 10 cm, secours à **19 cm** puis **9 cm**.
 
-## État actuel et limites
+### Troisième repère : couleur inconnue
 
-- La logique d’intelligence est maintenant bien intégrée dans la boucle principale via `code.py`, mais reste un
-  prototype de détection, pas une solution totalement robuste pour un usage industriel ou de terrain.
-- Les capteurs passés au constructeur sont vérifiés, mais les lectures de la boucle passent encore par `get_height()` et
-  `get_brightness()` dans `utils.py`; ce point reste une zone à améliorer pour rendre l’architecture plus testable.
-- `test_values()` valide la cohérence des seuils et des types, mais la gestion d’erreur doit encore être renforcée pour
-  des essais physiques réels.
-- La boucle ne contient ni délai maximal absolu ni mécanisme de watchdog complet. Le robot reste dépendant de la
-  stabilité du capteur et des conditions environnementales.
-- Les imports et capteurs employés sont propres à CircuitPython ; le code ne se lance pas directement sur Python
-  standard.
+Le BOSCARD mentionne une **couleur spécifique** pour marquer la fin du parcours, sans nommer cette couleur.
 
-## Pistes d’amélioration
+- `STOP_DETECTION_MODE = "CONTRAST_OR_DISTANCE"` : détection d'une variation de luminosité **en valeur absolue** (plus claire ou plus sombre), près de `STOP_PROPAGATION_HEIGHT`, ou arrêt par hauteur.
+- `STOP_DETECTION_MODE = "DISTANCE_ONLY"` : arrêt sur la seule hauteur de sécurité.
+- Contrairement aux deux premières cibles, la condition de distance finale est `median_height <= STOP_PROPAGATION_HEIGHT` : il n'y a **pas** de décalage supplémentaire `SECURITY_LEEWAY`.
 
-1. **Rendre les capteurs injectés réellement utilisables** : utiliser directement les objets reçus plutôt que de
-   dépendre des globals.
-2. **Renforcer les validations** : lever des exceptions explicites ou retourner un statut détaillé plutôt que de
-   continuer silencieusement.
-3. **Sécuriser les lectures** : valider les `None`, les dépassements, les temporisations et les capteurs bloqués.
-4. **Rendre le filtre cohérent avec une configuration variable** : calculer correctement la médiane pour un nombre
-   configurable d’échantillons ou imposer clairement une taille de 3.
-5. **Ajouter des états explicites** : `INITIALIZING`, `WAITING`, `ACTION`, `EMERGENCY_STOP`, `DONE` pour gagner en
-   lisibilité et testabilité.
-6. **Valider sur le robot réel** : les simulations sont utiles, mais les essais matérielle restent indispensables avant
-   un usage fiable.
+**Important :** le capteur analogique `wumons.Sensor` ne distingue pas les couleurs. Le réglage `STOP_BRIGHTNESS_CHANGE_PERCENT = 20` est expérimental ; un scotch insuffisamment contrasté ne sera pas reconnu optiquement. Une reconnaissance fiable de couleur exigerait un capteur adapté.
 
-Le modèle et les résultats des simulations sont présentés dans [simulations.md](simulations.md).
+## 3. Trois commandes moteur indépendantes
+
+| Réglage dans `settings.toml` | Phase | Défaut |
+|---|---|---:|
+| `MOTOR_POWER_BEFORE_RELEASE` | Approche et calibration | 100 % |
+| `MOTOR_POWER_DURING_RELEASE` | Trappe ouverte | 100 % |
+| `MOTOR_POWER_AFTER_RELEASE` | Trappe refermée, encore en mouvement | 100 % |
+
+Chaque valeur doit vérifier `0 < puissance <= 100`. La commande est transmise via `forward(puissance)` puis `motor.set_speed(puissance)` (rapport PWM). **La puissance n'est pas une mesure de vitesse ; l'arrêt à 0 % n'assure pas un freinage mécanique.**
+
+## 4. Contraintes et sécurités
+
+- Hauteurs obligatoires : `0 < STOP < END < START <= 320` cm.
+- Aucune superposition des fenêtres lumineuses entre deux cibles adjacentes.
+- `DISTANCE_SAMPLES = 3` obligatoire pour le calcul `sorted(history)[1]`.
+- Vérification des capteurs, des puissances, de la trappe (0 à 180°) et des seuils avant le lancement.
+- Intervalle de lecture demandé : `SENSOR_READ_INTERVAL_S = 0.05` s. La fréquence réelle dépend aussi de l'exécution et des accès I²C.
+- Durée maximale : `MAX_RUN_TIME_S = 120` s, puis arrêt de sécurité.
+- `run_intelligence()` retourne `True` en fin normale, `False` après arrêt de sécurité.
+- Un `finally` arrête le moteur et tente de fermer la trappe, y compris sur exception.
+- Après un arrêt d'urgence, `code.py` interdit une nouvelle mission sans remise à zéro.
+
+Les valeurs 20, 10 et **5 cm** ne représentent **pas** les altitudes réelles imposées par le concours ; 5 cm est un exemple provisoire en attendant la position du troisième repère.
+
+## 5. Tester le patch sans le robot
+
+Depuis la racine du dossier du patch, avec **Python 3.11 ou supérieur** :
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Résultat attendu : **10 tests, `OK`**. La suite vérifie les trois phases, les puissances distinctes, les détections du dernier repère, le timeout, les erreurs et la calibration du servo. Les tests simulent les capteurs et moteurs. Ils ne remplacent pas les essais matériels.
+
+Pour l'installation et l'ensemble des paramètres, voir [README.md](../README.md). Les résultats des **anciennes campagnes à deux repères** sont conservés dans [simulations.md](simulations.md).

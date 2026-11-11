@@ -1,20 +1,36 @@
-# Propagation
-START_PROPAGATION_HEIGHT = 20 # Hauteur en cm pour le début du largage
-END_PROPAGATION_HEIGHT = 10 # Hauteur en cm pour la fin du largage
+# Positions en cm, à remplacer par les altitudes réelles du parcours.
+START_PROPAGATION_HEIGHT = 20  # Premier scotch noir : ouverture de la trappe
+END_PROPAGATION_HEIGHT = 10    # Deuxieme scotch noir : fermeture de la trappe
+STOP_PROPAGATION_HEIGHT = 5   # EXEMPLE PROVISOIRE : troisieme repere / arret
 
-# Securite
-SECURITY_LEEWAY = 1 # Marge en cm sous la hauteur cible pour déclencher le secours ultrasonique
-MAX_INVALID_READINGS = 8 # Nombre de lectures invalides consécutives avant l'arrêt du robot
-MAX_HEIGHT_CHANGE_CM_PER_READING = 2 # Variation maximale autorisée entre deux médianes de hauteur (cm)
+# Puissances PWM des 3 phases, entre 1 et 100 %.
+# 100 % conserve le comportement précédent ; réduire avant les essais physiques.
+MOTOR_POWER_BEFORE_RELEASE = 100  # Avant le premier scotch : trappe fermee
+MOTOR_POWER_DURING_RELEASE = 100  # Entre le 1er et le 2e : trappe ouverte
+MOTOR_POWER_AFTER_RELEASE = 100  # Entre le 2e et le 3e : trappe fermee
 
-# Capteur ultrasonique
-DISTANCE_SAMPLES = 3 # Nombre de mesures utilisées pour calculer la médiane de hauteur
+# Sécurité du déplacement.
+SECURITY_LEEWAY = 1
+MAX_INVALID_READINGS = 8
+DISTANCE_SAMPLES = 3
+MAX_HEIGHT_CHANGE_CM_PER_READING = 2
+MAX_MEDIAN_JUMP_CM = 4  # Plafond absolu du saut de médiane après des rejets
+SENSOR_READ_INTERVAL_S = 0.05
+MAX_RUN_TIME_S = 120
 
-# Capteur lumineux
-BRIGHTNESS_DROP_DETECTION = 30 # Baisse de luminosité minimale (%) par rapport à la moyenne de référence
-BRIGHTNESS_SAMPLES = 20 # Nombre maximal de mesures utilisées pour calculer la moyenne de luminosité
-BRIGHTNESS_CONFIRM_SAMPLES = 2 # Nombre de lectures sombres consécutives nécessaires pour déclencher l'action
-MIN_BRIGHTNESS_SAMPLES = 5 # Nombre minimal de mesures nécessaires pour fixer la moyenne de luminosité
-BRIGHTNESS_DETECTION_WINDOW = 1  # Marge de ±1 cm autour de la hauteur cible autorisant la détection lumineuse
+# Détection optique des deux scotchs noirs.
+BRIGHTNESS_DROP_DETECTION = 30
+BRIGHTNESS_SAMPLES = 20
+BRIGHTNESS_CONFIRM_SAMPLES = 2
+MIN_BRIGHTNESS_SAMPLES = 5
+BRIGHTNESS_DETECTION_WINDOW = 1
 
-TRAPDOOR_OPEN_ANGLE = 45 # Angle d'ouverture de la trappe pour la dispertion du retardant
+# Troisième scotch : couleur encore inconnue dans le BOSCARD.
+# CONTRAST_OR_DISTANCE : variation lumineuse près de la cible OU arrêt à la hauteur.
+# DISTANCE_ONLY : aucun déclenchement optique, arrêt à la hauteur de sécurité.
+# Une photorésistance ne peut pas identifier une couleur précise.
+STOP_DETECTION_MODE = "CONTRAST_OR_DISTANCE"
+STOP_BRIGHTNESS_CHANGE_PERCENT = 20  # À calibrer sur le véritable troisième ruban
+
+# Trappe.
+TRAPDOOR_OPEN_ANGLE = 45

@@ -1,96 +1,109 @@
-from intelligence import *
-from utils import *
+"""Point d'entrée du robot R.A.L.F. (CircuitPython)."""
 
-WAITING = "WAITING"
-ACTION = "ACTION"
+import time
 
-"""Initialize the robot hardware and bring it to a safe idle state."""
+import settings
+from intelligence import Intelligence
+from utils import (
+    AvailableMusics,
+    error_leds_state,
+    get_brightness,
+    get_height,
+    in_action_leds_state,
+    initialize_ultrasonic_sensor,
+    initialized_leds_state,
+    is_button_pressed,
+    play_music,
+    set_trapdoor_position,
+    stop,
+    waiting_leds_state,
+)
 
 
-def initialize_robot(trap_position=0, motor_speed=0) -> bool:
-    """Initialize the trapdoor, ultrasonic sensor and motor.
-
-    The previous behavior is intentionally preserved: the function still tries the
-    same setup steps and returns True/False based on the success of the sequence.
-    """
+def initialize_robot() -> bool:
     try:
-        # Initialize the robot's components.
-        set_trapdoor_position(trap_position)
-        initialize_ultrasonic_sensor()
-        forward(motor_speed)
+        stop()
+        if not set_trapdoor_position(0):
+            raise RuntimeError("Initialisation de la trappe impossible")
+        if not initialize_ultrasonic_sensor():
+            raise RuntimeError("Initialisation du capteur URM09 impossible")
         play_music(AvailableMusics.SUCCESS_START)
         return True
-    except Exception as e:
-        print(f"Error initializing robot: {e}")
+    except Exception as exc:
+        print("Erreur d'initialisation :", exc)
+        stop()
         return False
 
 
-"""Monitor the robot while it waits for a start signal."""
-
-
 def monitor_idle_state():
-    """Report the current brightness and ultrasonic distance while idle."""
-    print(str(get_brightness()) + " % de luminosité & une hauteur de " + str(get_height()) + " cm.")
+    print("Luminosite :", get_brightness(), "% | Hauteur :", get_height(), "cm")
     time.sleep(0.125)
 
 
-"""Execute the action sequence upon pressing the start button."""
-
-
-def handle_start_action(decision_engine):
-    """Launch the start action sequence and then return to idle wait mode."""
-    print("Button pressed. Starting robot action sequence...")
+def handle_start_action(decision_engine) -> bool:
+    print("Demarrage de la mission...")
     in_action_leds_state()
-    decision_engine.run_intelligence()
-    waiting_leds_state()
-
-
-"""Main operational loop: wait for start while monitoring sensors."""
+    try:
+        return decision_engine.run_intelligence()
+    finally:
+        stop()
 
 
 def loop():
-    """Run the robot's waiting loop until the start button is pressed.
-
-    This keeps the original logic: the robot keeps reporting sensor values while
-    idle, and when the button is pressed it runs the intelligence cycle.
-    """
-    decision_engine = Intelligence(settings.distance_sensor, settings.brightness_sensor)
-    state = WAITING
+    engine = Intelligence(settings.distance_sensor, settings.brightness_sensor)
     waiting_leds_state()
 
     while True:
-        if state == WAITING:
-            if not is_button_pressed(start_button):
-                monitor_idle_state()
-                continue
+        if not is_button_pressed(settings.start_button):
+            monitor_idle_state()
+            continue
 
-            state = ACTION
+        try:
+            success = handle_start_action(engine)
+        except Exception as exc:
+            print("Erreur d'execution :", exc)
+            success = False
+            stop()
+            try:
+                set_trapdoor_position(0)
+            except Exception:
+                pass
 
-        if state == ACTION:
-            handle_start_action(decision_engine)
-            state = WAITING
+        if not success:
+            print("Mission interrompue : remise a zero necessaire.")
+            error_leds_state()
+            while True:
+                time.sleep(1)
 
-
-"""Entry point of the program."""
+        print("Mission terminee.")
+        waiting_leds_state()
+        # Anti-redémarrage si le bouton reste appuyé.
+        while is_button_pressed(settings.start_button):
+            time.sleep(0.05)
 
 
 def main():
-    """Initialize the robot and enter the main processing loop."""
-    print("Starting robot...")
-    print("Initializing components...")
-
-    if initialize_robot():
-        print("Robot initialized. Waiting for button press...")
-        if not initialize_ultrasonic_sensor():
-            raise RuntimeError("Initialisation du capteur URM09 impossible")
-        time.sleep(0.5)
-        loop()
-    else:
-        print("Failed to initialize robot. Please check the components and restart the program.")
+    print("R.A.L.F. : initialisation")
+    if not initialize_robot():
         error_leds_state()
         while True:
-            play_music(AvailableMusics.INIT_ERROR)
-            time.sleep(1.5)
+            time.sleep(1)
+
+    print("Robot initialise. En attente du bouton.")
+    initialized_leds_state()
+    time.sleep(0.5)
+    try:
+        loop()
+    except Exception as exc:
+        stop()
+        try:
+            set_trapdoor_position(0)
+        except Exception:
+            pass
+        print("Erreur fatale :", exc)
+        error_leds_state()
+        while True:
+            time.sleep(1)
 
 
 if __name__ == "__main__":

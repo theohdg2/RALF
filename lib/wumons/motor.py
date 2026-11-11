@@ -26,13 +26,18 @@ class DCMotor:
 class Servo:
     def __init__(self, pin):
         self.pin = pin
-        self.pwm = pwmio.PWMOut(self.pin, duty_cycle=2 ** 15, frequency=50)
+        self.pwm = pwmio.PWMOut(
+            pin,
+            duty_cycle=0,
+            frequency=50
+        )
+        self._driver = servo.Servo(self.pwm)
+        self.angle = None
 
-    def set_pulse_width_range(self, min_pulse: int = 750, max_pulse: int = 2250):
-        setServo = servo.Servo(self.pwm)
-        setServo.set_pulse_width_range(min_pulse, max_pulse)
+    def set_pulse_width_range(self, min_pulse=750, max_pulse=2250):
+        self._driver.set_pulse_width_range(min_pulse, max_pulse)
 
     def set_angle(self, angle=90):
-        setServo = servo.Servo(self.pwm)
+        self._driver.angle = angle
         self.angle = angle
-        setServo.angle = self.angle
+

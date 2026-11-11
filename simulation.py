@@ -1,321 +1,394 @@
-# PROTOTYPE EXPÉRIMENTAL : simulation optimisée de R.A.L.F. pour Python sur PC.
-# Contient les conditions dégradées de logs(8) ; fichiers de production non modifiés.
-# La valeur DESCENT_CM_PER_READING sert à modéliser la progression simulée.
-# Sur le robot, remplacer cette estimation par vitesse maximale réelle × temps écoulé.
-# Recommandation : valider aussi sous des conditions réalistes avant déploiement.
+"""Campagnes de simulation du VRAI intelligence.py de R.A.L.F. sur ordinateur.
 
-"""Simulation des capteurs et de l'intelligence du robot R.A.L.F.
+Exemples (Python 3.11+) :
+    python simulation.py --count 1000 --profile standard
+    python simulation.py --count 10000 --profile stress --seed 2000
+    python simulation.py --count 1 --seed 92880 --verbose
 
-Lancement : python "simulation(1).py"
-Get_height() fait descendre le robot d'un pas et retourne des cm entiers.
-Get_brightness() retourne un pourcentage à la meme position.
-Le simulateur conserve les constantes d'origine, mais ajoute les pertes
-ultrasoniques (-1), le filtrage et la confirmation lumineuse.
+Le simulateur remplace uniquement le matériel (URM09, photorésistance, moteur,
+servo et horloge) par des doubles. Les décisions restent prises par la classe
+Intelligence de production. Les puissances PWM ne donnent pas une vitesse
+mesurée : un facteur vitesse/puissance hypothétique est utilisé ici.
 """
 
+import argparse
+import contextlib
+import csv
+import importlib.util
+import io
+import json
 import random
+import sys
+import tomllib
+import types
+from dataclasses import dataclass
+from pathlib import Path
 
-# ---------------- PARAMÈTRES MODIFIABLES ----------------
-INITIAL_HEIGHT_CM = 60.0
-DESCENT_CM_PER_READING = 0.1
+ROOT = Path(__file__).resolve().parent
 
-SECURITY_LEEWAY = 1
-BRIGHTNESS_DETECTION_WINDOW = 1  # cm autour de la cible
-START_PROPAGATION_HEIGHT = 20
-END_PROPAGATION_HEIGHT = 10
-BRIGHTNESS_DROP_DETECTION = 20
-
-START_MARKER_CM = 20.0
-END_MARKER_CM = 10.0
-MARKER_HALF_WIDTH_CM = 0.5
-
-NORMAL_BRIGHTNESS = 60.0
-MARKER_BRIGHTNESS = 45.0
-BRIGHTNESS_NOISE = 0.5  # Ecart-type, points de pourcentage
-HEIGHT_NOISE_CM = 0.5  # Ecart-type, cm
-
-HEIGHT_FALSE_READING_RATE = 0.1
-HEIGHT_NO_ECHO_RATE = 0.1  # Retour -1 en l'absence d'écho
-BRIGHTNESS_FALSE_READING_RATE = 0.1
-
-# Meme paramètres de filtrage que dans intelligence.py
-DISTANCE_SAMPLES = 3
-BRIGHTNESS_SAMPLES = 20
-MIN_BRIGHTNESS_SAMPLES = 5
-BRIGHTNESS_CONFIRM_SAMPLES = 3
-MAX_HEIGHT_CHANGE_CM_PER_READING = 2.0
-MAX_INVALID_READINGS = 8
-
-RANDOM_SEED = 0
-NUMBER_OF_SIMULATIONS = 1000
-PRINT_EACH_SIMULATION = False
-# ---------------------------------------------------------
-
-_rng = random.Random(RANDOM_SEED)
-true_height = INITIAL_HEIGHT_CM
-last_height_glitch = False
-last_height_no_echo = False
-last_brightness_glitch = False
+PROFILES = {
+    "standard": {
+        "height_noise_cm": 0.25,
+        "height_false_rate": 0.005,
+        "height_no_echo_rate": 0.01,
+        "brightness_noise_percent": 1.0,
+        "brightness_false_rate": 0.005,
+    },
+    "stress": {
+        "height_noise_cm": 0.50,
+        "height_false_rate": 0.10,
+        "height_no_echo_rate": 0.10,
+        "brightness_noise_percent": 2.0,
+        "brightness_false_rate": 0.10,
+    },
+}
 
 
-def reset_simulation():
-    """Reinitialise la hauteur ET le hasard pour une seed reproductible."""
-    global _rng, RANDOM_SEED, true_height
-    global last_height_glitch, last_height_no_echo, last_brightness_glitch
-    RANDOM_SEED = seed
-    _rng = random.Random(seed)
-    true_height = INITIAL_HEIGHT_CM
-    last_height_glitch = False
-    last_height_no_echo = False
-    last_brightness_glitch = False
+@dataclass
+class SimParameters:
+    initial_height_cm: float = 60.0
+    speed_at_100_cm_s: float = 2.0
+    marker_half_width_cm: float = 0.6
+    cable_brightness: float = 60.0
+    black_marker_brightness: float = 20.0
+    final_marker_brightness: float = 90.0
+    final_marker: str = "bright"
+    height_noise_cm: float = 0.25
+    height_false_rate: float = 0.005
+    height_no_echo_rate: float = 0.01
+    brightness_noise_percent: float = 1.0
+    brightness_false_rate: float = 0.005
+
+    def validate(self, cfg):
+        if self.initial_height_cm <= cfg.START_PROPAGATION_HEIGHT + 2:
+            raise ValueError("La hauteur initiale doit être au-dessus du premier repère.")
+        if self.speed_at_100_cm_s <= 0 or self.marker_half_width_cm <= 0:
+            raise ValueError("La vitesse et la demi-largeur des rubans doivent être positives.")
+        for name in ("height_false_rate", "height_no_echo_rate", "brightness_false_rate"):
+            if not 0 <= getattr(self, name) <= 1:
+                raise ValueError("{} doit être compris entre 0 et 1.".format(name))
+        for name in ("height_noise_cm", "brightness_noise_percent"):
+            if getattr(self, name) < 0:
+                raise ValueError("{} doit être positif ou nul.".format(name))
+        if self.final_marker not in ("bright", "dark", "none"):
+            raise ValueError("Troisième repère invalide.")
+        if self.initial_height_cm > 320:
+            raise ValueError("Hauteur initiale hors de la portée 0–320 cm du logiciel.")
 
 
-def get_height() -> int:
-    """Distance en cm (int), ou -1 si l'ultrason ne capte aucun echo."""
-    global true_height, last_height_glitch, last_height_no_echo
+class FakeDistance:
+    """Même interface que DFRobot_URM09 utilisée par Intelligence."""
 
-    # Le robot continu à descendre, meme si une mesure échoue.
-    true_height = max(0.0, true_height - DESCENT_CM_PER_READING)
+    def __init__(self, env):
+        self.env = env
 
-    last_height_no_echo = _rng.random() < HEIGHT_NO_ECHO_RATE
-    if last_height_no_echo:
-        last_height_glitch = True
-        return -1
+    def get_distance(self):
+        e = self.env
+        e.readings += 1
+        if e.rng.random() < e.sim.height_no_echo_rate:
+            e.no_echo += 1
+            return -1
+        value = e.height + e.rng.gauss(0.0, e.sim.height_noise_cm)
+        if e.rng.random() < e.sim.height_false_rate:
+            e.distance_outliers += 1
+            value += e.rng.choice((-12.0, -8.0, 8.0, 12.0))
+        return round(value)
 
-    measured = true_height + _rng.gauss(0, HEIGHT_NOISE_CM)
-    last_height_glitch = _rng.random() < HEIGHT_FALSE_READING_RATE
-    if last_height_glitch:
-        measured += _rng.choice((-12.0, -8.0, 8.0, 12.0))
 
-    return int(round(max(0.0, measured)))
+class FakeBrightness:
+    """Même interface que Sensor : valeur ADC entière de 0 à 65535."""
+
+    def __init__(self, env):
+        self.env = env
+
+    def get_value(self):
+        e = self.env
+        sim = e.sim
+        c = e.cfg
+        h = e.height
+        if (abs(h - c.START_PROPAGATION_HEIGHT) <= sim.marker_half_width_cm
+                or abs(h - c.END_PROPAGATION_HEIGHT) <= sim.marker_half_width_cm):
+            brightness = sim.black_marker_brightness
+        elif abs(h - c.STOP_PROPAGATION_HEIGHT) <= sim.marker_half_width_cm:
+            brightness = {
+                "bright": sim.final_marker_brightness,
+                "dark": sim.black_marker_brightness,
+                "none": sim.cable_brightness,
+            }[sim.final_marker]
+        else:
+            brightness = sim.cable_brightness
+        brightness += e.rng.gauss(0.0, sim.brightness_noise_percent)
+        if e.rng.random() < sim.brightness_false_rate:
+            e.brightness_outliers += 1
+            brightness = e.rng.uniform(0, 100)
+        brightness = max(0.0, min(100.0, brightness))
+        return round(brightness * 65535 / 100)
 
 
-def get_brightness() -> float:
-    """Luminosité en % (float), a la meme position que get_height()."""
-    global last_brightness_glitch
+class SimEnvironment:
+    def __init__(self, seed, cfg, sim):
+        self.seed = seed
+        self.cfg = cfg
+        self.sim = sim
+        self.rng = random.Random(seed)
+        self.height = sim.initial_height_cm
+        self.t = 0.0
+        self.motor = 0.0
+        self.trap = 0.0
+        self.events = []
+        self.readings = 0
+        self.no_echo = 0
+        self.distance_outliers = 0
+        self.brightness_outliers = 0
+        self.distance_sensor = FakeDistance(self)
+        self.brightness_sensor = FakeBrightness(self)
 
-    on_marker = (
-            abs(true_height - START_MARKER_CM) <= MARKER_HALF_WIDTH_CM
-            or abs(true_height - END_MARKER_CM) <= MARKER_HALF_WIDTH_CM
+    def sleep(self, duration):
+        if duration < 0:
+            raise ValueError("Durée de simulation négative")
+        # Hypothèse simplifiée : vitesse de descente proportionnelle au PWM.
+        # Sans inertie, sans patinage, sans loi de freinage ni pente variable.
+        speed = self.sim.speed_at_100_cm_s * self.motor / 100
+        self.height = max(0.0, self.height - speed * duration)
+        self.t += duration
+
+    def event(self, name, value):
+        self.events.append((name, value, self.height, self.t))
+
+    def forward(self, power):
+        self.motor = power
+        self.event("motor", power)
+
+    def stop(self):
+        self.motor = 0
+        self.event("stop", 0)
+
+    def set_trap(self, angle):
+        self.trap = angle
+        self.event("trap", angle)
+        return True
+
+
+class Simulator:
+    """Charge une seule fois intelligence.py, puis réutilise sa classe réelle."""
+
+    def __init__(self, config):
+        self.config = config
+        self.current = None
+        self.settings = types.SimpleNamespace(**config)
+
+        fake_utils = types.ModuleType("utils")
+        fake_utils.settings = self.settings
+        fake_utils.DFRobot_URM09 = FakeDistance
+        fake_utils.Sensor = FakeBrightness
+        fake_utils.AvailableMusics = types.SimpleNamespace(BIRTHDAY=["note"])
+        fake_utils.forward = lambda power: self.current.forward(power)
+        fake_utils.stop = lambda: self.current.stop()
+        fake_utils.set_trapdoor_position = lambda angle: self.current.set_trap(angle)
+        fake_utils.play_music = lambda tune: self.current.event("music", tune)
+        fake_utils.error_leds_state = lambda: self.current.event("error_leds", None)
+
+        self._old_utils = sys.modules.get("utils")
+        sys.modules["utils"] = fake_utils
+        try:
+            spec = importlib.util.spec_from_file_location("ralf_intelligence_simulation", ROOT / "intelligence.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            if self._old_utils is None:
+                sys.modules.pop("utils", None)
+            else:
+                sys.modules["utils"] = self._old_utils
+        module.time = self
+        self.engine_module = module
+
+    def monotonic(self):
+        return self.current.t
+
+    def sleep(self, duration):
+        self.current.sleep(duration)
+
+    def run_one(self, seed, sim, verbose=False):
+        sim.validate(self.settings)
+        env = SimEnvironment(seed, self.settings, sim)
+        self.current = env
+        engine = self.engine_module.Intelligence(env.distance_sensor, env.brightness_sensor)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            success = engine.run_intelligence()
+
+        start = end = stop_height = None
+        # Événements physiques : trappe ouverte au premier, fermée au deuxième,
+        # premier ordre stop au troisième. Le finally ajoute un second stop.
+        opened = False
+        for kind, value, height, timestamp in env.events:
+            if kind == "trap" and value != 0 and start is None:
+                start = height
+                opened = True
+            elif kind == "trap" and value == 0 and opened and end is None:
+                end = height
+            elif kind == "stop" and stop_height is None:
+                stop_height = height
+
+        # Un arrêt d'urgence en cours de mission n'est pas un repère validé.
+        if not success:
+            stop_height = None
+        status = "OK" if success else "EMERGENCY"
+        if not success and not any(k == "error_leds" for k, *_ in env.events):
+            status = "FAILED"
+        target = (self.settings.START_PROPAGATION_HEIGHT,
+                  self.settings.END_PROPAGATION_HEIGHT,
+                  self.settings.STOP_PROPAGATION_HEIGHT)
+        row = {
+            "seed": seed, "status": status,
+            "start_cm": round(start, 3) if start is not None else "",
+            "end_cm": round(end, 3) if end is not None else "",
+            "stop_cm": round(stop_height, 3) if stop_height is not None else "",
+            "start_error_cm": round(start - target[0], 3) if start is not None else "",
+            "end_error_cm": round(end - target[1], 3) if end is not None else "",
+            "stop_error_cm": round(stop_height - target[2], 3) if stop_height is not None else "",
+            "elapsed_s": round(env.t, 3),
+            "readings": env.readings,
+            "no_echo": env.no_echo,
+            "distance_outliers": env.distance_outliers,
+            "brightness_outliers": env.brightness_outliers,
+            "final_height_cm": round(env.height, 3),
+        }
+        if verbose:
+            print("--- Simulation seed {} ---".format(seed))
+            print("Paramètres PWM : {} / {} / {} %".format(
+                self.settings.MOTOR_POWER_BEFORE_RELEASE,
+                self.settings.MOTOR_POWER_DURING_RELEASE,
+                self.settings.MOTOR_POWER_AFTER_RELEASE))
+            print(output.getvalue().strip())
+            print("Déroulement des actionneurs :")
+            for kind, value, height, timestamp in env.events:
+                if kind in ("motor", "trap", "stop", "error_leds"):
+                    print("  t={:6.2f}s  h={:6.2f}cm  {:10s} {}".format(timestamp, height, kind, value))
+            print("Données :", row)
+        return row
+
+
+FIELDS = (
+    "seed", "status", "start_cm", "end_cm", "stop_cm",
+    "start_error_cm", "end_error_cm", "stop_error_cm",
+    "elapsed_s", "readings", "no_echo", "distance_outliers",
+    "brightness_outliers", "final_height_cm",
+)
+
+
+def load_settings(path):
+    with path.open("rb") as file:
+        return tomllib.load(file)
+
+
+def build_sim_parameters(args):
+    profile = dict(PROFILES[args.profile])
+    kwargs = dict(
+        initial_height_cm=args.initial_height,
+        speed_at_100_cm_s=args.speed,
+        marker_half_width_cm=args.marker_half_width,
+        final_marker=args.final_marker,
     )
-    reference = MARKER_BRIGHTNESS if on_marker else NORMAL_BRIGHTNESS
-    measured = reference + _rng.gauss(0, BRIGHTNESS_NOISE)
+    kwargs.update(profile)
+    return SimParameters(**kwargs)
 
-    last_brightness_glitch = _rng.random() < BRIGHTNESS_FALSE_READING_RATE
-    if last_brightness_glitch:
-        # Faux positif (cable) ou faux négatif (scotch).
-        measured = (
-            _rng.uniform(50.0, 75.0) if on_marker
-            else _rng.uniform(15.0, 33.0)
+
+def summarize(rows, config):
+    count = len(rows)
+    good = [r for r in rows if r["status"] == "OK"]
+    def within(r, limit):
+        return all(isinstance(r[k], (int, float)) and abs(r[k]) <= limit
+                   for k in ("start_error_cm", "end_error_cm", "stop_error_cm"))
+    on_marker = None if config.final_marker == "none" else sum(all(
+        abs(r[k]) <= config.marker_half_width_cm
+        for k in ("start_error_cm", "end_error_cm", "stop_error_cm")
+    ) for r in good)
+    summary = {
+        "count": count,
+        "completed": len(good),
+        "emergencies": sum(r["status"] == "EMERGENCY" for r in rows),
+        "finished_percent": round(len(good) * 100 / count, 4),
+        "all_three_within_1cm": sum(within(r, 1) for r in good),
+        "all_three_within_2cm": sum(within(r, 2) for r in good),
+        "all_three_on_marker": on_marker,
+    }
+    for metric in ("all_three_within_1cm", "all_three_within_2cm", "all_three_on_marker"):
+        summary[metric + "_percent"] = (
+            round(100 * summary[metric] / count, 4)
+            if summary[metric] is not None else None
         )
-
-    return round(min(100.0, max(0.0, measured)), 2)
-
-
-def _log_trigger(phase, median_height, current_height,
-                 current_brightness, brightness_reference,
-                 distance_triggered, brightness_triggered, verbose):
-    """Journal permettant de comprendre la cause de chaque déclenchement."""
-    if not verbose:
-        return
-    print("Déclenchement de l'action de {} à {:.2f}".format(
-        "début" if phase == "START" else "fin", true_height
-    ))
-    print("--------------------[INFOS]--------------------")
-    print("Distance réelle simulée (cm)", round(true_height, 2))
-    print("Distance brute mesurée (cm)", current_height)
-    print("Médiane des 3 distances", median_height)
-    print("Luminosité actuelle (%)", current_brightness)
-    print("Luminosité moyenne de référence (%)", brightness_reference)
-    print("Déclenchement par distance", distance_triggered)
-    print("Déclenchement par luminosité", brightness_triggered)
-    print("Distance cible actuelle", (
-        START_PROPAGATION_HEIGHT if phase == "START"
-        else END_PROPAGATION_HEIGHT
-    ))
-    print("--------------------[INFOS]--------------------")
+    return summary
 
 
-def run_intelligence(verbose=True):
-    """Version simulable de run_intelligence() (memes seuils/conditions)."""
-    # Simulation : forward(100) est remplace par la descente virtuelle
-    # effectuée lors de chaque appel a get_height().
-    distance_history = []
-    brightness_history = []
-    brightness_reference = None
+def run_campaign(count, first_seed, config, sim, *, output=None, verbose=False):
+    rows = []
+    engine = Simulator(config)
+    for index in range(count):
+        rows.append(engine.run_one(first_seed + index, sim, verbose=verbose))
+    summary = summarize(rows, sim)
+    if output is not None:
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=FIELDS)
+            writer.writeheader()
+            writer.writerows(rows)
+        meta = {
+            "reference": "intelligence.py (imports matériel simulés)",
+            "first_seed": first_seed,
+            "last_seed": first_seed + count - 1,
+            "settings": config,
+            "simulator": vars(sim),
+            "summary": summary,
+        }
+        summary_path = output.with_suffix(".summary.json")
+        summary_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    return rows, summary
 
-    actions_start_ran = False
-    last_median_height = None
-    no_echo_streak = 0
-    rejected_window_streak = 0
-    brightness_confirmations = 0
-    iteration = 0
-    last_accepted_iteration = 0
-    results = {"start": None, "end": None, "status": "RUNNING", "seed": RANDOM_SEED}
 
-    while True:
-        iteration += 1
-        current_height = get_height()
-        current_brightness = get_brightness()
-
-        # --------------------------------------------------
-        # 1. FILTRE ULTRASON : -1 = aucun echo recu
-        # --------------------------------------------------
-        invalid_height = (
-                current_height is None
-                or current_height < 0
-                or current_height > 320
-        )
-        if invalid_height:
-            no_echo_streak += 1
-            # keep last two valid distance readings
-            brightness_confirmations = 0
-            if no_echo_streak >= MAX_INVALID_READINGS:
-                results["status"] = "SENSOR_STOP"
-                if verbose:
-                    print("ARRÊT : trop de mesures ultrasoniques invalides")
-                return results
-            continue
-
-        no_echo_streak = 0
-        distance_history.append(current_height)
-        if len(distance_history) > DISTANCE_SAMPLES:
-            distance_history.pop(0)
-        if len(distance_history) < DISTANCE_SAMPLES:
-            continue
-
-        median_height = sorted(distance_history)[1]
-
-        if last_median_height is not None:
-            allowed_change = min(4.0, 2.0 + DESCENT_CM_PER_READING * (iteration - last_accepted_iteration))
-            if abs(median_height - last_median_height) > allowed_change:
-                rejected_window_streak += 1
-                distance_history.clear()  # discard suspect window
-                brightness_confirmations = 0
-                if rejected_window_streak >= MAX_INVALID_READINGS:
-                    results["status"] = "SENSOR_STOP"
-                    if verbose:
-                        print("ARRÊT : distances incohérentes répétées")
-                    return results
-                continue
-
-        last_accepted_iteration = iteration
-        last_median_height = median_height
-        rejected_window_streak = 0
-
-        # --------------------------------------------------
-        # 2. PHASE START OU END
-        # --------------------------------------------------
-        if not actions_start_ran:
-            target_height = START_PROPAGATION_HEIGHT
-            can_calibrate = (
-                    median_height > START_PROPAGATION_HEIGHT + SECURITY_LEEWAY
-            )
-        else:
-            target_height = END_PROPAGATION_HEIGHT
-            can_calibrate = (
-                    START_PROPAGATION_HEIGHT - SECURITY_LEEWAY
-                    > median_height
-                    > END_PROPAGATION_HEIGHT + SECURITY_LEEWAY
-            )
-
-        # --------------------------------------------------
-        # 3. REFERENCE LUMINEUSE
-        # --------------------------------------------------
-        if brightness_reference is None:
-            if can_calibrate:
-                brightness_history.append(current_brightness)
-                if len(brightness_history) > BRIGHTNESS_SAMPLES:
-                    brightness_history.pop(0)
-            elif len(brightness_history) >= MIN_BRIGHTNESS_SAMPLES:
-                brightness_reference = (
-                    sorted(brightness_history)[len(brightness_history) // 2]
-                )
-
-        # --------------------------------------------------
-        # 4. DÉCLENCHEMENTS
-        # --------------------------------------------------
-        distance_triggered = (
-                median_height <= target_height - SECURITY_LEEWAY
-        )
-
-        in_brightness_zone = (
-                target_height - BRIGHTNESS_DETECTION_WINDOW
-                <= median_height
-                <= target_height + BRIGHTNESS_DETECTION_WINDOW
-        )
-        brightness_low = (
-                brightness_reference is not None
-                and in_brightness_zone
-                and current_brightness <= brightness_reference * (
-                        1 - BRIGHTNESS_DROP_DETECTION / 100
-                )
-        )
-
-        if brightness_low:
-            brightness_confirmations += 1
-        else:
-            brightness_confirmations = 0
-
-        brightness_triggered = (
-                brightness_confirmations >= BRIGHTNESS_CONFIRM_SAMPLES
-        )
-
-        if not (distance_triggered or brightness_triggered):
-            continue
-
-        # --------------------------------------------------
-        # 5. ACTIONS SIMULÉES
-        # --------------------------------------------------
-        phase = "END" if actions_start_ran else "START"
-        _log_trigger(
-            phase, median_height, current_height, current_brightness,
-            brightness_reference, distance_triggered, brightness_triggered,
-            verbose
-        )
-
-        results[phase.lower()] = true_height
-
-        if not actions_start_ran:
-            actions_start_ran = True
-            distance_history.clear()
-            brightness_history.clear()
-            brightness_reference = None
-            # préserve last_median_height
-            no_echo_streak = 0
-            brightness_confirmations = 0
-            continue
-
-        results["status"] = "FINISHED"
-        return results
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Campagnes reproductibles R.A.L.F. à trois scotchs (Python PC).")
+    parser.add_argument("--count", type=int, default=1000, help="Nombre de descentes (défaut : 1000).")
+    parser.add_argument("--seed", type=int, default=0, help="Première seed (défaut : 0).")
+    parser.add_argument("--profile", choices=tuple(PROFILES), default="standard")
+    parser.add_argument("--speed", type=float, default=2.0, help="Vitesse supposée à 100 %% PWM, en cm/s.")
+    parser.add_argument("--initial-height", type=float, default=60.0, help="Hauteur au départ (cm).")
+    parser.add_argument("--marker-half-width", type=float, default=0.6, help="Demi-largeur des 3 rubans en cm.")
+    parser.add_argument("--final-marker", choices=("bright", "dark", "none"), default="bright")
+    parser.add_argument("--settings", type=Path, default=ROOT / "settings.toml", help="Fichier de configuration.")
+    parser.add_argument("--output", type=Path, default=None, help="Chemin CSV (défaut : results/...).")
+    parser.add_argument("--show-failures", type=int, default=5, help="Nombre de seeds non conformes à afficher.")
+    parser.add_argument("--verbose", action="store_true", help="Afficher les actions de chaque descente (éviter pour un grand lot).")
+    args = parser.parse_args(argv)
+    if args.count < 1:
+        parser.error("--count doit être >= 1")
+    if args.show_failures < 0:
+        parser.error("--show-failures doit être >= 0")
+    cfg = load_settings(args.settings)
+    sim = build_sim_parameters(args)
+    sim.validate(types.SimpleNamespace(**cfg))
+    output = args.output or ROOT / "results" / "simulation_{}_{}_seed{}.csv".format(args.profile, args.count, args.seed)
+    rows, summary = run_campaign(args.count, args.seed, cfg, sim, output=output,
+                                 verbose=args.verbose)
+    print("\n=== R.A.L.F. : {} descentes / profil {} ===".format(args.count, args.profile))
+    print("Mission terminée : {} / {} ({} %)".format(summary["completed"], args.count, summary["finished_percent"]))
+    print("Arrêts d'urgence : {}".format(summary["emergencies"]))
+    print("Trois repères à ±1 cm : {} ({} %)".format(summary["all_three_within_1cm"], summary["all_three_within_1cm_percent"]))
+    print("Trois repères à ±2 cm : {} ({} %)".format(summary["all_three_within_2cm"], summary["all_three_within_2cm_percent"]))
+    if summary["all_three_on_marker"] is None:
+        print("Trois repères sur ruban : sans objet (3e ruban absent)")
+    else:
+        print("Trois repères sur ruban : {} ({} %)".format(summary["all_three_on_marker"], summary["all_three_on_marker_percent"]))
+    bad = [r for r in rows if r["status"] != "OK" or any(
+        r[k] == "" or abs(r[k]) > 1 for k in ("start_error_cm", "end_error_cm", "stop_error_cm"))]
+    if bad and args.show_failures:
+        print("Seeds à rejouer ({} exemples) : {}".format(
+            min(args.show_failures, len(bad)), ", ".join(str(r["seed"]) for r in bad[:args.show_failures])))
+    print("CSV :", output)
+    print("Métadonnées :", output.with_suffix(".summary.json"))
+    return 0
 
 
 if __name__ == "__main__":
-    complete = 0
-    emergency_stops = 0
-    starts = []
-    ends = []
-    for seed in range(NUMBER_OF_SIMULATIONS):
-        reset_simulation()
-        if PRINT_EACH_SIMULATION:
-            print(
-                "Simulation des capteurs : descente de {:.0f} cm a 0 cm avec seed : {}".format(INITIAL_HEIGHT_CM, seed))
-        result = run_intelligence(verbose=PRINT_EACH_SIMULATION)
-        if result["status"] == "FINISHED":
-            complete += 1
-        else:
-            emergency_stops += 1
-        if result["start"] is not None:
-            starts.append(result["start"])
-        if result["end"] is not None:
-            ends.append(result["end"])
-
-    print("\n===== BILAN =====")
-    print("Simulations terminées :", complete, "/", NUMBER_OF_SIMULATIONS)
-    print("Arrêts par capteur défaillant :", emergency_stops)
-    if starts:
-        print("START moyen : {:.3f} cm".format(sum(starts) / len(starts)))
-        print("START min / max : {:.2f} / {:.2f} cm".format(min(starts), max(starts)))
-    if ends:
-        print("END moyen : {:.3f} cm".format(sum(ends) / len(ends)))
-        print("END min / max : {:.2f} / {:.2f} cm".format(min(ends), max(ends)))
+    raise SystemExit(main())
